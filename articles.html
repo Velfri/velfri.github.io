@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Articles | Velfri</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .articles-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .article-card {
+            background: rgba(139, 172, 239, 0.05);
+            border: 1px solid var(--primary);
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .article-card:hover {
+            background: rgba(139, 172, 239, 0.15);
+            border-color: var(--accent);
+            transform: translateX(10px);
+        }
+
+        .article-card h3 {
+            color: var(--accent);
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .article-meta {
+            color: var(--primary);
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+
+        .article-card p {
+            color: var(--text);
+            opacity: 0.85;
+            line-height: 1.8;
+        }
+
+        .read-more {
+            display: inline-block;
+            margin-top: 15px;
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .read-more:hover {
+            color: var(--primary);
+            transform: translateX(5px);
+        }
+
+        .placeholder-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--primary);
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <span class="logo-text">Velfri</span>
+            </div>
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search articles...">
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="projects.html" class="nav-link">Projects</a></li>
+                <li><a href="articles.html" class="nav-link active">Articles</a></li>
+                <li><a href="about.html" class="nav-link">About</a></li>
+            </ul>
+            <button class="theme-toggle" title="Toggle theme">🌙</button>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero" style="min-height: 300px;">
+        <div class="hero-content">
+            <h1 class="title-animate">Articles & Tutorials</h1>
+            <p class="hero-subtitle">Thoughts, tips, and technical deep-dives</p>
+        </div>
+    </section>
+
+    <section class="articles-container">
+        <div class="placeholder-message">
+            <p>📝 Articles coming soon...</p>
+            <p>Check back later for in-depth technical articles and tutorials!</p>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Velfri. All rights reserved.</p>
+            <div class="social-links">
+                <a href="https://github.com/Velfri" target="_blank">GitHub</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
