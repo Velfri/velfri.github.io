@@ -2,25 +2,255 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Andriy Vakulich | Projects</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Andriy Vakulich | Portfolio</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f4; text-align: center; padding: 50px; }
-        .card { background: white; padding: 20px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
-        p { color: #666; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --text: #dfebfa;
+            --background: #051120;
+            --primary: #8bacef;
+            --secondary: #5e148a;
+            --accent: #e43fda;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--background) 100%);
+            padding: 60px 20px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header .container {
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            background: linear-gradient(120deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+
+        .bio {
+            font-size: 1.1em;
+            max-width: 600px;
+            margin: 0 auto;
+            color: var(--text);
+            opacity: 0.9;
+        }
+
+        section {
+            margin: 50px 0;
+        }
+
+        h2 {
+            font-size: 2em;
+            margin-bottom: 30px;
+            color: var(--primary);
+            border-left: 4px solid var(--accent);
+            padding-left: 15px;
+        }
+
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .project-card {
+            background: rgba(139, 172, 239, 0.05);
+            border: 1px solid var(--primary);
+            border-radius: 8px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .project-card:hover {
+            background: rgba(139, 172, 239, 0.15);
+            border-color: var(--accent);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(228, 63, 218, 0.2);
+        }
+
+        .project-card h3 {
+            color: var(--accent);
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .project-card p {
+            color: var(--text);
+            opacity: 0.85;
+            margin-bottom: 15px;
+        }
+
+        .tech-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            background: var(--secondary);
+            color: var(--text);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            border: 1px solid var(--primary);
+        }
+
+        .contact-section {
+            text-align: center;
+            padding: 40px;
+            background: rgba(94, 20, 138, 0.1);
+            border-radius: 8px;
+            border: 1px solid var(--secondary);
+        }
+
+        .contact-section h2 {
+            border: none;
+            margin-bottom: 20px;
+        }
+
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .social-links a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            background: var(--primary);
+            color: var(--background);
+            border-radius: 50%;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            border: 2px solid var(--primary);
+        }
+
+        .social-links a:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            border-top: 1px solid var(--secondary);
+            color: var(--text);
+            opacity: 0.7;
+            margin-top: 50px;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            h2 {
+                font-size: 1.5em;
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>Привіт, я Андрій!</h1>
-        <p>Студент спеціальності АКІТР. Займаюся 3D-моделюванням та мікроконтролерами.</p>
-        <hr>
-        <h3>Мої проекти:</h3>
-        <ul>
-            <li>Роботизована рука UR5 (Fusion 360)</li>
-            <li>Очищувач повітря на ESP32</li>
-            <li>Gyver Lamp (WLED)</li>
-        </ul>
-    </div>
+    <header>
+        <div class="container">
+            <h1>Andriy Vakulich</h1>
+            <p class="subtitle">Розроблювач | Інженер | Любитель технологій</p>
+            <p class="bio">Студент АКІТР. Спеціалізуюся на 3D-моделюванні, мікроконтролерах та автоматизації.</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <section>
+                <h2>🚀 Проекти</h2>
+                <div class="projects-grid">
+                    <div class="project-card">
+                        <h3>Роботизована рука UR5</h3>
+                        <p>3D-модель промислового робота з повною кінематикою та симуляцією.</p>
+                        <div class="tech-tags">
+                            <span class="tag">Fusion 360</span>
+                            <span class="tag">CAD</span>
+                            <span class="tag">3D-модель</span>
+                        </div>
+                    </div>
+
+                    <div class="project-card">
+                        <h3>Очищувач повітря</h3>
+                        <p>Розумний пристрій на базі ESP32 з контролем якості повітря та мобільним додатком.</p>
+                        <div class="tech-tags">
+                            <span class="tag">ESP32</span>
+                            <span class="tag">IoT</span>
+                            <span class="tag">Мікроконтролери</span>
+                        </div>
+                    </div>
+
+                    <div class="project-card">
+                        <h3>Gyver Lamp</h3>
+                        <p>RGB-лампа з інтерактивним управлінням через WLED та кастомні режими підсвітлення.</p>
+                        <div class="tech-tags">
+                            <span class="tag">WLED</span>
+                            <span class="tag">LED</span>
+                            <span class="tag">Електроніка</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="contact-section">
+                <h2>📬 Зв'яжіться зі мною</h2>
+                <div class="social-links">
+                    <a href="https://github.com" title="GitHub">GH</a>
+                    <a href="https://linkedin.com" title="LinkedIn">in</a>
+                    <a href="mailto:contact@example.com" title="Email">✉️</a>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <p>© 2026 Andriy Vakulich. Всі права захищені.</p>
+    </footer>
 </body>
 </html>
