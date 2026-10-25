@@ -30,12 +30,12 @@ function setup() {
 
   smooth();
   mobileQuality = min(windowWidth, windowHeight) < 768;
-  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 1.5) : min(window.devicePixelRatio, 2));
+  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 3) : min(window.devicePixelRatio, 2));
   frameRate(60);
 
   // Буфери текстур
   ledMatrix = createGraphics(cols, rows);
-  glowTexture = createGraphics(mobileQuality ? 128 : 192, mobileQuality ? 64 : 96);
+  glowTexture = createGraphics(192, 96);
 }
 
 function draw() {
@@ -154,7 +154,7 @@ function updateEffect() {
   glowTexture.image(ledMatrix, w * 2, 0, w, h);
   glowTexture.noTint();
 
-  glowTexture.filter(BLUR, 4);
+  glowTexture.filter(BLUR, 2);
 }
 
 // Заднє сяйво
@@ -178,7 +178,7 @@ function drawBacklightGlow(w, h, col, strength) {
 // Плавне дугове скруглення купола без сходинок
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 80;
+  const detail = 128;
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
@@ -220,7 +220,7 @@ function drawFullLamp(r, mainH, baseH, glow) {
   const buttonR = r * 0.42;
   const topY = -mainH;
   const shellAlpha = lerp(245, 255, 1 - lightLevel);
-  const arcSteps = 12;
+  const arcSteps = 16;
   const shellRings = [
     { radius: r, y: baseH * 0.3, v: 0.98 },
     { radius: r, y: cylinderTopY, v: 0.15 },
@@ -387,6 +387,6 @@ function touchEnded() {
 
 function windowResized() {
   mobileQuality = min(windowWidth, windowHeight) < 768;
-  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 1.5) : min(window.devicePixelRatio, 2));
+  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 3) : min(window.devicePixelRatio, 2));
   resizeCanvas(windowWidth, windowHeight);
 }
