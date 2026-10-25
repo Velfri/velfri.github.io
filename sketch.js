@@ -19,11 +19,13 @@ let ambientColor = [255, 100, 20];
 function setup() {
   createCanvas(windowWidth, windowHeight, WEBGL);
   
-  // 1. Оптимізація DPI для запобігання надмірному навантаженню GPU
-  pixelDensity(1);
+  // Обмежуємо щільність пікселів до 2 (High-DPI / Retina):
+  // Це дасть ідеально чітку картинку на телефоні, але не просадить FPS
+  pixelDensity(min(window.devicePixelRatio, 2));
+  
   frameRate(60);
 
-  // 2. Зменшені буфери для миттєвого розмиття (BLUR)
+  // Буфери текстур залишаємо легкими
   ledMatrix = createGraphics(cols, rows);
   glowTexture = createGraphics(192, 96);
 }
