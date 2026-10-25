@@ -30,7 +30,7 @@ function setup() {
 
   smooth();
   mobileQuality = min(windowWidth, windowHeight) < 768;
-  pixelDensity(mobileQuality ? 1 : min(window.devicePixelRatio, 2));
+  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 1.5) : min(window.devicePixelRatio, 2));
   frameRate(60);
 
   // Буфери текстур
@@ -387,6 +387,6 @@ function touchEnded() {
 
 function windowResized() {
   mobileQuality = min(windowWidth, windowHeight) < 768;
-  pixelDensity(mobileQuality ? 1 : min(window.devicePixelRatio, 2));
+  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 1.5) : min(window.devicePixelRatio, 2));
   resizeCanvas(windowWidth, windowHeight);
 }
