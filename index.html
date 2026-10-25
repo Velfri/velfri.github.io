@@ -1,92 +1,44 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Velfri | Portfolio & Projects</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <!-- Блокування масштабування для нативного відчуття додатка -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart Lamp</title>
+
+  <!-- PWA та налаштування для iOS (Safari) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Smart Lamp">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Підключення p5.js через CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-touch-callout: none; /* Відключає контекстне меню на iOS */
+      -webkit-user-select: none;   /* Відключає виділення тексту */
+      user-select: none;
+      touch-action: none;         /* Блокує стандартний скрол сторінки при свайпах */
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #12141A;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <span class="logo-text">Velfri</span>
-            </div>
-            <div class="search-box">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Search projects...">
-            </div>
-            <ul class="nav-menu">
-                <li><a href="index.html" class="nav-link active">Home</a></li>
-                <li><a href="projects.html" class="nav-link">Projects</a></li>
-                <li><a href="articles.html" class="nav-link">Articles</a></li>
-                <li><a href="about.html" class="nav-link">About</a></li>
-            </ul>
-            <button class="theme-toggle" title="Toggle theme">🌙</button>
-            <div class="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-    </nav>
-
-    <section class="hero">
-        <div class="stars"></div>
-        <div class="hero-content">
-            <h1 class="title-animate">Velfri</h1>
-            <p class="hero-subtitle">Developer • Engineer • Tech Enthusiast</p>
-            <p class="hero-description">Building cool things with code and electronics</p>
-            <a href="projects.html" class="cta-button">View My Work</a>
-        </div>
-    </section>
-
-    <section class="featured-projects">
-        <div class="container">
-            <h2 class="section-title">Featured Projects</h2>
-            <div class="projects-grid" id="projectsContainer">
-                <!-- Projects will be loaded from GitHub API -->
-            </div>
-        </div>
-    </section>
-
-    <section class="stats">
-        <div class="container">
-            <div class="stat-item">
-                <h3 id="repoCount">0</h3>
-                <p>Public Repositories</p>
-            </div>
-            <div class="stat-item">
-                <h3 id="followerCount">0</h3>
-                <p>Followers</p>
-            </div>
-            <div class="stat-item">
-                <h3 id="starCount">0</h3>
-                <p>Total Stars</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="cta-section">
-        <div class="container">
-            <h2>Let's Build Something Together</h2>
-            <p>Check out my projects or learn more about what I do</p>
-            <div class="cta-buttons">
-                <a href="projects.html" class="btn btn-primary">Explore Projects</a>
-                <a href="about.html" class="btn btn-secondary">Learn More</a>
-            </div>
-        </div>
-    </section>
-
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2026 Velfri. All rights reserved.</p>
-            <div class="social-links">
-                <a href="https://github.com/Velfri" target="_blank">GitHub</a>
-            </div>
-        </div>
-    </footer>
-
-    <script src="script.js"></script>
+  <!-- Підключення вашого скрипту 3D-лампи -->
+  <script src="sketch.js"></script>
 </body>
 </html>
