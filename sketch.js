@@ -1,6 +1,8 @@
 let ledMatrix;   // Буфер для точкової матриці 16x16
 let glowTexture; // Розмита безшовна текстура
 let mobileQuality = false;
+let fpsCounter;
+let lastFpsUpdate = 0;
 let lampOn = true;
 let lightLevel = 1;
 let fadeStartLevel = 1;
@@ -27,6 +29,7 @@ let ambientColor = [255, 100, 20];
 function setup() {
   setAttributes('antialias', true);
   createCanvas(windowWidth, windowHeight, WEBGL);
+  fpsCounter = document.getElementById('fps-counter');
 
   smooth();
   mobileQuality = min(windowWidth, windowHeight) < 768;
@@ -40,6 +43,11 @@ function setup() {
 
 function draw() {
   background(18, 20, 26);
+
+  if (fpsCounter && millis() - lastFpsUpdate >= 500) {
+    fpsCounter.textContent = `FPS ${Math.round(frameRate())}`;
+    lastFpsUpdate = millis();
+  }
 
   // Ортографічна проєкція
   ortho(-width / 2, width / 2, -height / 2, height / 2, -1000, 1000);
@@ -217,13 +225,12 @@ function drawFullLamp(r, mainH, baseH, glow) {
   // Боковина, скруглення й торець утворюють одну безперервну сітку.
   const roundedTopRadius = r * 0.16;
   const cylinderTopY = -mainH + roundedTopRadius;
-  const topSurfaceR = r - roundedTopRadius;
   const buttonR = r * 0.42;
   const topY = -mainH;
   const shellAlpha = lerp(245, 255, 1 - lightLevel);
   const arcSteps = 12;
   const shellRings = [
-    { radius: r, y: 0, v: 0.98 },
+    { radius: r, y: baseH * 0.3, v: 0.98 },
     { radius: r, y: cylinderTopY, v: 0.15 },
   ];
 

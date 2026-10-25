@@ -35,10 +35,23 @@
     canvas {
       display: block;
     }
+    #fps-counter {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 10;
+      padding: 4px 7px;
+      border-radius: 3px;
+      background: rgba(18, 20, 26, 0.72);
+      color: rgba(255, 255, 255, 0.82);
+      font: 11px/1.2 monospace;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
   <!-- Підключення вашого скрипту 3D-лампи -->
+  <div id="fps-counter" aria-hidden="true">FPS --</div>
   <script src="sketch.js"></script>
 </body>
 </html>
