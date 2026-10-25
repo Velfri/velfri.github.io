@@ -17,8 +17,10 @@ let currentPosX = 0;
 let ambientColor = [255, 100, 20];
 
 function setup() {
-  // Апаратне згладжування ребер WebGL
+  // КРИТИЧНО: Налаштування апаратного антиаліасингу ДО створення полотна
   setAttributes('antialias', true);
+  setAttributes('perPixelLighting', true);
+  
   createCanvas(windowWidth, windowHeight, WEBGL);
   
   smooth();
@@ -58,7 +60,7 @@ function draw() {
   currentPosX = lerp(currentPosX, targetX, 0.08);
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
-  // Оновлюємо ефект вогню (кожен 2-й кадр)
+  // Оновлюємо ефект вогню
   if (frameCount % 2 === 0) {
     updateEffect();
   }
@@ -154,10 +156,10 @@ function drawBacklightGlow(w, h, col) {
   endShape();
 }
 
-// Гладка 3D-модель (detail = 64 прибирає сходинки)
+// Побудова гладкої 3D-моделі
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 64; // Підвищена деталізація окружності
+  const detail = 48; // Оптимальне значення для апаратного згладжування
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
@@ -213,8 +215,8 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // Плавне скруглення купола верху (10 кільцевих сегментів)
-  const arcRings = 10;
+  // Плавне скруглення верху
+  const arcRings = 8;
   for (let ring = 0; ring < arcRings; ring++) {
     let a1 = map(ring, 0, arcRings, 0, HALF_PI);
     let a2 = map(ring + 1, 0, arcRings, 0, HALF_PI);
