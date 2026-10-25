@@ -117,13 +117,11 @@ function updateEffect() {
       let ny = y * 0.12 - t;
 
       let val = noise(nx + 10, ny, nz + t * 0.3);
-
       if (val > 0.22) {
         let factor = constrain(map(val, 0.22, 0.85, 0, 1), 0, 1);
         let r = 255;
         let g = lerp(10, 220, factor);
         let b = lerp(0, 30, factor);
-
         ledMatrix.fill(r, g, b);
         ledMatrix.rect(x, y, 1, 1);
 
@@ -132,6 +130,7 @@ function updateEffect() {
         totalB += b;
         count++;
       }
+
     }
   }
 
@@ -267,20 +266,18 @@ function drawFullLamp(r, mainH, baseH, glow) {
   endShape();
   noTint();
 
-  fill(
-    lerp(242, ambientColor[0], lightLevel),
-    lerp(245, ambientColor[1], lightLevel),
-    lerp(249, ambientColor[2], lightLevel),
-    shellAlpha
-  );
+  tint(255, shellAlpha);
   beginShape(QUAD_STRIP);
+  texture(glow);
   for (let i = 0; i <= detail; i++) {
     const u = i / detail;
     const angle = u * TWO_PI + PI;
-    vertex(cos(angle) * topSurfaceR, topY, sin(angle) * topSurfaceR);
-    vertex(cos(angle) * (buttonR + 0.5), topY, sin(angle) * (buttonR + 0.5));
+    const texU = map(u, 0, 1, 0.333, 0.666);
+    vertex(cos(angle) * topSurfaceR, topY, sin(angle) * topSurfaceR, texU, 0.02);
+    vertex(cos(angle) * (buttonR + 0.5), topY, sin(angle) * (buttonR + 0.5), texU, 0.02);
   }
   endShape();
+  noTint();
 
   // 3. ОБ'ЄМНА КНОПКА В ЦЕНТРІ
   const buttonHeight = 3.5;
