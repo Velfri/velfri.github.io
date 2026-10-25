@@ -217,6 +217,7 @@ function drawFullLamp(r, mainH, baseH, glow) {
   // Боковина, скруглення й торець утворюють одну безперервну сітку.
   const roundedTopRadius = r * 0.16;
   const cylinderTopY = -mainH + roundedTopRadius;
+  const topSurfaceR = r - roundedTopRadius;
   const buttonR = r * 0.42;
   const topY = -mainH;
   const shellAlpha = lerp(245, 255, 1 - lightLevel);
@@ -234,8 +235,6 @@ function drawFullLamp(r, mainH, baseH, glow) {
       v: map(step, 0, arcSteps, 0.15, 0.04),
     });
   }
-  shellRings.push({ radius: buttonR, y: topY, v: 0.01 });
-
   tint(255, shellAlpha);
   beginShape(TRIANGLES);
   texture(glow);
@@ -267,6 +266,21 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
   noTint();
+
+  fill(
+    lerp(242, ambientColor[0], lightLevel),
+    lerp(245, ambientColor[1], lightLevel),
+    lerp(249, ambientColor[2], lightLevel),
+    shellAlpha
+  );
+  beginShape(QUAD_STRIP);
+  for (let i = 0; i <= detail; i++) {
+    const u = i / detail;
+    const angle = u * TWO_PI + PI;
+    vertex(cos(angle) * topSurfaceR, topY, sin(angle) * topSurfaceR);
+    vertex(cos(angle) * (buttonR + 0.5), topY, sin(angle) * (buttonR + 0.5));
+  }
+  endShape();
 
   // 3. ОБ'ЄМНА КНОПКА В ЦЕНТРІ
   const buttonHeight = 3.5;
