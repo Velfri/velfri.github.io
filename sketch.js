@@ -5,6 +5,7 @@ let lightLevel = 1;
 let fadeStartLevel = 1;
 let fadeTargetLevel = 1;
 let fadeStartedAt = 0;
+let effectNeedsRefresh = true;
 const fadeDuration = 700;
 
 const cols = 16;
@@ -68,8 +69,9 @@ function draw() {
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
   // Оновлюємо ефект вогню
-  if ((lampOn || lightLevel > 0.001) && frameCount % 2 === 0) {
+  if ((lampOn || lightLevel > 0.001 || effectNeedsRefresh) && frameCount % 2 === 0) {
     updateEffect();
+    effectNeedsRefresh = false;
   }
 
   // 1. СВІТІННЯ ЗЗАДУ
@@ -174,7 +176,7 @@ function drawBacklightGlow(w, h, col, strength) {
 // Плавне дугове скруглення купола без сходинок
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 96;
+  const detail = 80;
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
@@ -216,7 +218,8 @@ function drawFullLamp(r, mainH, baseH, glow) {
   const buttonR = r * 0.42;
   const topY = -mainH;
 
-  tint(255, 245);
+  const shellAlpha = lerp(245, 255, 1 - lightLevel);
+  tint(255, shellAlpha);
 
   // А. Бічна стінка циліндра
   beginShape(QUAD_STRIP);
@@ -231,8 +234,8 @@ function drawFullLamp(r, mainH, baseH, glow) {
   endShape();
 
   // Б. Плавне плавне дугове скруглення купола (Суцільна сітка)
-  tint(255, lerp(245, 255, 1 - lightLevel));
-  const arcSteps = 24;
+  tint(255, shellAlpha);
+  const arcSteps = 16;
   beginShape(TRIANGLES);
   texture(glow);
   for (let step = 0; step < arcSteps; step++) {
@@ -351,6 +354,9 @@ function toggleLamp() {
   fadeStartedAt = millis();
   if (lampOn) {
     updateEffect();
+    effectNeedsRefresh = false;
+  } else {
+    effectNeedsRefresh = true;
   }
 }
 
