@@ -1,5 +1,6 @@
 let ledMatrix;   // Буфер для точкової матриці 16x16
 let glowTexture; // Розмита безшовна текстура
+let mobileQuality = false;
 let lampOn = true;
 let lightLevel = 1;
 let fadeStartLevel = 1;
@@ -28,12 +29,13 @@ function setup() {
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   smooth();
-  pixelDensity(min(window.devicePixelRatio, 2));
+  mobileQuality = min(windowWidth, windowHeight) < 768;
+  pixelDensity(mobileQuality ? 1 : min(window.devicePixelRatio, 2));
   frameRate(60);
 
   // Буфери текстур
   ledMatrix = createGraphics(cols, rows);
-  glowTexture = createGraphics(192, 96);
+  glowTexture = createGraphics(mobileQuality ? 128 : 192, mobileQuality ? 64 : 96);
 }
 
 function draw() {
@@ -69,7 +71,8 @@ function draw() {
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
   // Оновлюємо ефект вогню
-  if ((lampOn || lightLevel > 0.001 || effectNeedsRefresh) && frameCount % 2 === 0) {
+  const effectUpdateInterval = mobileQuality ? 4 : 2;
+  if ((lampOn || lightLevel > 0.001 || effectNeedsRefresh) && frameCount % effectUpdateInterval === 0) {
     updateEffect();
     effectNeedsRefresh = false;
   }
@@ -185,107 +188,82 @@ function drawFullLamp(r, mainH, baseH, glow) {
 
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    vertex(cos(a) * r, 0, sin(a) * r);
-    vertex(cos(a) * bottomR, baseH * 0.4, sin(a) * bottomR);
+    const u = i / detail;
+    const angle = u * TWO_PI + PI;
+    vertex(cos(angle) * r, 0, sin(angle) * r);
+    vertex(cos(angle) * bottomR, baseH * 0.4, sin(angle) * bottomR);
   }
   endShape();
 
   fill(155, 158, 167);
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    vertex(cos(a) * bottomR, baseH * 0.4, sin(a) * bottomR);
-    vertex(cos(a) * (bottomR - 2), baseH, sin(a) * (bottomR - 2));
+    const u = i / detail;
+    const angle = u * TWO_PI + PI;
+    vertex(cos(angle) * bottomR, baseH * 0.4, sin(angle) * bottomR);
+    vertex(cos(angle) * (bottomR - 2), baseH, sin(angle) * (bottomR - 2));
   }
   endShape();
 
   beginShape(TRIANGLE_FAN);
   vertex(0, baseH, 0);
   for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    vertex(cos(a) * (bottomR - 2), baseH, sin(a) * (bottomR - 2));
+    const u = i / detail;
+    const angle = u * TWO_PI + PI;
+    vertex(cos(angle) * (bottomR - 2), baseH, sin(angle) * (bottomR - 2));
   }
   endShape();
 
-  // 2. БЕЗШОВНИЙ СУЦІЛЬНИЙ КОРПУС ПЛАФОНА З ПЛАВНИМ КУПОЛОМ
-  const roundedTopRadius = r * 0.16; // Радіус купола
+  // Боковина, скруглення й торець утворюють одну безперервну сітку.
+  const roundedTopRadius = r * 0.16;
   const cylinderTopY = -mainH + roundedTopRadius;
   const topSurfaceR = r - roundedTopRadius;
   const buttonR = r * 0.42;
   const topY = -mainH;
-
   const shellAlpha = lerp(245, 255, 1 - lightLevel);
-  tint(255, shellAlpha);
+  const arcSteps = 12;
+  const shellRings = [
+    { radius: r, y: 0, v: 0.98 },
+    { radius: r, y: cylinderTopY, v: 0.15 },
+  ];
 
-  // А. Бічна стінка циліндра
-  beginShape(QUAD_STRIP);
-  texture(glow);
-  for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    let texU = map(u, 0, 1, 0.333, 0.666);
-    vertex(cos(a) * r, 0, sin(a) * r, texU, 0.98);
-    vertex(cos(a) * r, cylinderTopY, sin(a) * r, texU, 0.15);
+  for (let step = 1; step <= arcSteps; step++) {
+    const angle = map(step, 0, arcSteps, 0, HALF_PI);
+    shellRings.push({
+      radius: r - roundedTopRadius * (1 - cos(angle)),
+      y: cylinderTopY - sin(angle) * roundedTopRadius,
+      v: map(step, 0, arcSteps, 0.15, 0.04),
+    });
   }
-  endShape();
+  shellRings.push({ radius: buttonR, y: topY, v: 0.01 });
 
-  // Б. Плавне плавне дугове скруглення купола (Суцільна сітка)
   tint(255, shellAlpha);
-  const arcSteps = 16;
-  beginShape(TRIANGLES);
-  texture(glow);
-  for (let step = 0; step < arcSteps; step++) {
-    let angle1 = map(step, 0, arcSteps, 0, HALF_PI);
-    let angle2 = map(step + 1, 0, arcSteps, 0, HALF_PI);
-
-    let currentR1 = r - roundedTopRadius * (1 - cos(angle1));
-    let currentR2 = r - roundedTopRadius * (1 - cos(angle2));
-    let currentY1 = cylinderTopY - sin(angle1) * roundedTopRadius;
-    let currentY2 = cylinderTopY - sin(angle2) * roundedTopRadius;
-
-    let v1 = map(step, 0, arcSteps, 0.15, 0.04);
-    let v2 = map(step + 1, 0, arcSteps, 0.15, 0.04);
-
-    for (let i = 0; i < detail; i++) {
-      let u = i / detail;
-      let a = u * TWO_PI + PI;
-      let texU = map(u, 0, 1, 0.333, 0.666);
-      let nextA = ((i + 1) / detail) * TWO_PI + PI;
-      let nextTexU = map((i + 1) / detail, 0, 1, 0.333, 0.666);
-      let x1 = cos(a) * currentR1;
-      let z1 = sin(a) * currentR1;
-      let x2 = cos(a) * currentR2;
-      let z2 = sin(a) * currentR2;
-      let x3 = cos(nextA) * currentR1;
-      let z3 = sin(nextA) * currentR1;
-      let x4 = cos(nextA) * currentR2;
-      let z4 = sin(nextA) * currentR2;
-
-      vertex(x1, currentY1, z1, texU, v1);
-      vertex(x2, currentY2, z2, texU, v2);
-      vertex(x3, currentY1, z3, nextTexU, v1);
-      vertex(x3, currentY1, z3, nextTexU, v1);
-      vertex(x2, currentY2, z2, texU, v2);
-      vertex(x4, currentY2, z4, nextTexU, v2);
+  for (let ring = 0; ring < shellRings.length - 1; ring++) {
+    const currentRing = shellRings[ring];
+    const nextRing = shellRings[ring + 1];
+    beginShape(QUAD_STRIP);
+    texture(glow);
+    for (let i = 0; i <= detail; i++) {
+      const u = i / detail;
+      const angle = u * TWO_PI + PI;
+      const texU = map(u, 0, 1, 0.333, 0.666);
+      vertex(
+        cos(angle) * currentRing.radius,
+        currentRing.y,
+        sin(angle) * currentRing.radius,
+        texU,
+        currentRing.v
+      );
+      vertex(
+        cos(angle) * nextRing.radius,
+        nextRing.y,
+        sin(angle) * nextRing.radius,
+        texU,
+        nextRing.v
+      );
     }
+    endShape();
   }
-  endShape();
-
-  // В. Верхній плоский торець навколо кнопки
-  beginShape(QUAD_STRIP);
-  texture(glow);
-  for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    let texU = map(u, 0, 1, 0.333, 0.666);
-    vertex(cos(a) * topSurfaceR, topY, sin(a) * topSurfaceR, texU, 0.04);
-    vertex(cos(a) * buttonR, topY, sin(a) * buttonR, texU, 0.01);
-  }
-  endShape();
   noTint();
 
   // 3. ОБ'ЄМНА КНОПКА В ЦЕНТРІ
@@ -395,5 +373,7 @@ function touchEnded() {
 }
 
 function windowResized() {
+  mobileQuality = min(windowWidth, windowHeight) < 768;
+  pixelDensity(mobileQuality ? 1 : min(window.devicePixelRatio, 2));
   resizeCanvas(windowWidth, windowHeight);
 }
