@@ -1,5 +1,11 @@
 let ledMatrix;   // Буфер для точкової матриці 16x16
 let glowTexture; // Розмита безшовна текстура
+let lampOn = true;
+let lightLevel = 1;
+let fadeStartLevel = 1;
+let fadeTargetLevel = 1;
+let fadeStartedAt = 0;
+const fadeDuration = 700;
 
 const cols = 16;
 const rows = 16;
@@ -35,6 +41,10 @@ function draw() {
   // Ортографічна проєкція
   ortho(-width / 2, width / 2, -height / 2, height / 2, -1000, 1000);
 
+  const fadeProgress = constrain((millis() - fadeStartedAt) / fadeDuration, 0, 1);
+  const easedFadeProgress = fadeProgress * fadeProgress * (3 - 2 * fadeProgress);
+  lightLevel = lerp(fadeStartLevel, fadeTargetLevel, easedFadeProgress);
+
   // Плавна інтерполяція скролу
   scrollProgress = lerp(scrollProgress, targetScrollProgress, 0.08);
 
@@ -58,15 +68,17 @@ function draw() {
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
   // Оновлюємо ефект вогню
-  if (frameCount % 2 === 0) {
+  if ((lampOn || lightLevel > 0.001) && frameCount % 2 === 0) {
     updateEffect();
   }
 
   // 1. СВІТІННЯ ЗЗАДУ
-  push();
-  translate(currentPosX, currentPosY, -150);
-  drawBacklightGlow(280, 520, ambientColor);
-  pop();
+  if (lightLevel > 0.001) {
+    push();
+    translate(currentPosX, currentPosY, -150);
+    drawBacklightGlow(280, 520, ambientColor, lightLevel);
+    pop();
+  }
 
   // 2. 3D РЕНДЕР ЛАМПИ
   push();
@@ -124,22 +136,28 @@ function updateEffect() {
     ambientColor[2] = totalB / count;
   }
 
-  glowTexture.background(0);
+  glowTexture.background(
+    lerp(242, 0, lightLevel),
+    lerp(245, 0, lightLevel),
+    lerp(249, 0, lightLevel)
+  );
   let w = glowTexture.width / 3;
   let h = glowTexture.height;
 
+  glowTexture.tint(255, 255 * lightLevel);
   glowTexture.image(ledMatrix, 0, 0, w, h);
   glowTexture.image(ledMatrix, w, 0, w, h);
   glowTexture.image(ledMatrix, w * 2, 0, w, h);
+  glowTexture.noTint();
 
   glowTexture.filter(BLUR, 4);
 }
 
 // Заднє сяйво
-function drawBacklightGlow(w, h, col) {
+function drawBacklightGlow(w, h, col, strength) {
   noStroke();
   beginShape(TRIANGLE_FAN);
-  fill(col[0], col[1], col[2], 130);
+  fill(col[0], col[1], col[2], 130 * strength);
   vertex(0, 0, 0);
   fill(col[0], col[1], col[2], 0);
 
@@ -156,11 +174,11 @@ function drawBacklightGlow(w, h, col) {
 // Плавне дугове скруглення купола без сходинок
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 64;
+  const detail = 96;
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
-  fill(220, 222, 228);
+  fill(190, 193, 201);
   noStroke();
 
   beginShape(QUAD_STRIP);
@@ -172,7 +190,7 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  fill(205, 208, 215);
+  fill(155, 158, 167);
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
@@ -213,7 +231,10 @@ function drawFullLamp(r, mainH, baseH, glow) {
   endShape();
 
   // Б. Плавне плавне дугове скруглення купола (Суцільна сітка)
-  const arcSteps = 5; // Оптимальна кількість сегментів дуги для мобільних
+  tint(255, lerp(245, 255, 1 - lightLevel));
+  const arcSteps = 24;
+  beginShape(TRIANGLES);
+  texture(glow);
   for (let step = 0; step < arcSteps; step++) {
     let angle1 = map(step, 0, arcSteps, 0, HALF_PI);
     let angle2 = map(step + 1, 0, arcSteps, 0, HALF_PI);
@@ -226,17 +247,30 @@ function drawFullLamp(r, mainH, baseH, glow) {
     let v1 = map(step, 0, arcSteps, 0.15, 0.04);
     let v2 = map(step + 1, 0, arcSteps, 0.15, 0.04);
 
-    beginShape(QUAD_STRIP);
-    texture(glow);
-    for (let i = 0; i <= detail; i++) {
+    for (let i = 0; i < detail; i++) {
       let u = i / detail;
       let a = u * TWO_PI + PI;
       let texU = map(u, 0, 1, 0.333, 0.666);
-      vertex(cos(a) * currentR1, currentY1, sin(a) * currentR1, texU, v1);
-      vertex(cos(a) * currentR2, currentY2, sin(a) * currentR2, texU, v2);
+      let nextA = ((i + 1) / detail) * TWO_PI + PI;
+      let nextTexU = map((i + 1) / detail, 0, 1, 0.333, 0.666);
+      let x1 = cos(a) * currentR1;
+      let z1 = sin(a) * currentR1;
+      let x2 = cos(a) * currentR2;
+      let z2 = sin(a) * currentR2;
+      let x3 = cos(nextA) * currentR1;
+      let z3 = sin(nextA) * currentR1;
+      let x4 = cos(nextA) * currentR2;
+      let z4 = sin(nextA) * currentR2;
+
+      vertex(x1, currentY1, z1, texU, v1);
+      vertex(x2, currentY2, z2, texU, v2);
+      vertex(x3, currentY1, z3, nextTexU, v1);
+      vertex(x3, currentY1, z3, nextTexU, v1);
+      vertex(x2, currentY2, z2, texU, v2);
+      vertex(x4, currentY2, z4, nextTexU, v2);
     }
-    endShape();
   }
+  endShape();
 
   // В. Верхній плоский торець навколо кнопки
   beginShape(QUAD_STRIP);
@@ -294,16 +328,63 @@ function mouseWheel(event) {
 }
 
 let touchStartY = 0;
+let touchStartX = 0;
+let touchStartedOnLamp = false;
+let touchMovedEnough = false;
+let touchPending = false;
+let lastTouchToggleAt = -Infinity;
+
+function isLampHit(x, y) {
+  const isPortrait = height > width;
+  const radius = isPortrait ? width * 0.17 : height * 0.14;
+  const mainHeight = radius * 3.7;
+  const centerX = width / 2 + currentPosX;
+  const centerY = height / 2 + currentPosY;
+
+  return abs(x - centerX) <= radius * 1.15 && abs(y - centerY) <= mainHeight * 0.55;
+}
+
+function toggleLamp() {
+  lampOn = !lampOn;
+  fadeStartLevel = lightLevel;
+  fadeTargetLevel = lampOn ? 1 : 0;
+  fadeStartedAt = millis();
+  if (lampOn) {
+    updateEffect();
+  }
+}
+
+function mousePressed() {
+  if (touchPending || millis() - lastTouchToggleAt < 500) return false;
+  if (isLampHit(mouseX, mouseY)) toggleLamp();
+  return false;
+}
+
 function touchStarted() {
   touchStartY = mouseY;
+  touchStartX = mouseX;
+  touchStartedOnLamp = isLampHit(mouseX, mouseY);
+  touchMovedEnough = false;
+  touchPending = true;
 }
 
 function touchMoved() {
+  if (dist(mouseX, mouseY, touchStartX, touchStartY) > 12) touchMovedEnough = true;
+
   let deltaY = touchStartY - mouseY;
   touchStartY = mouseY;
 
   targetScrollProgress += deltaY * 0.003;
   targetScrollProgress = constrain(targetScrollProgress, 0, 1);
+  return false;
+}
+
+function touchEnded() {
+  if (touchStartedOnLamp && !touchMovedEnough) {
+    toggleLamp();
+    lastTouchToggleAt = millis();
+  }
+  touchPending = false;
   return false;
 }
 
