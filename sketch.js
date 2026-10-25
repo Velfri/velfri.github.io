@@ -17,15 +17,15 @@ let currentPosX = 0;
 let ambientColor = [255, 100, 20];
 
 function setup() {
+  // Апаратне згладжування ребер WebGL
+  setAttributes('antialias', true);
   createCanvas(windowWidth, windowHeight, WEBGL);
   
-  // Обмежуємо щільність пікселів до 2 (High-DPI / Retina):
-  // Це дасть ідеально чітку картинку на телефоні, але не просадить FPS
+  smooth();
   pixelDensity(min(window.devicePixelRatio, 2));
-  
   frameRate(60);
 
-  // Буфери текстур залишаємо легкими
+  // Буфери текстур
   ledMatrix = createGraphics(cols, rows);
   glowTexture = createGraphics(192, 96);
 }
@@ -58,18 +58,18 @@ function draw() {
   currentPosX = lerp(currentPosX, targetX, 0.08);
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
-  // Оновлюємо ефект (кожен 2-й кадр для збереження ресурсів CPU/GPU)
+  // Оновлюємо ефект вогню (кожен 2-й кадр)
   if (frameCount % 2 === 0) {
     updateEffect();
   }
 
-  // 3. СВІТІННЯ ЗЗАДУ
+  // 1. СВІТІННЯ ЗЗАДУ
   push();
   translate(currentPosX, currentPosY, -150);
   drawBacklightGlow(280, 520, ambientColor);
   pop();
 
-  // 4. 3D РЕНДЕР ЛАМПИ
+  // 2. 3D РЕНДЕР ЛАМПИ
   push();
   translate(currentPosX, currentPosY, 0);
   rotateX(radians(currentAngleX));
@@ -84,7 +84,7 @@ function draw() {
   pop();
 }
 
-// Оптимізована генерація ефекту вогню
+// Генерація безшовної текстури
 function updateEffect() {
   ledMatrix.background(0);
   ledMatrix.noStroke();
@@ -133,11 +133,10 @@ function updateEffect() {
   glowTexture.image(ledMatrix, w, 0, w, h);
   glowTexture.image(ledMatrix, w * 2, 0, w, h);
 
-  // Легке розмиття
   glowTexture.filter(BLUR, 4);
 }
 
-// Світловий німб ззаду
+// Світловий німб
 function drawBacklightGlow(w, h, col) {
   noStroke();
   beginShape(TRIANGLE_FAN);
@@ -145,7 +144,7 @@ function drawBacklightGlow(w, h, col) {
   vertex(0, 0, 0);
   fill(col[0], col[1], col[2], 0);
 
-  const detail = 20;
+  const detail = 32;
   for (let i = 0; i <= detail; i++) {
     let a = (i / detail) * TWO_PI;
     let rx = cos(a) * w * 1.3;
@@ -155,10 +154,10 @@ function drawBacklightGlow(w, h, col) {
   endShape();
 }
 
-// Оптимізована 3D-модель лампи (detail = 28 забезпечує високий FPS)
+// Гладка 3D-модель (detail = 64 прибирає сходинки)
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 28;
+  const detail = 64; // Підвищена деталізація окружності
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
@@ -214,8 +213,8 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // Плавне скруглення верху
-  const arcRings = 5;
+  // Плавне скруглення купола верху (10 кільцевих сегментів)
+  const arcRings = 10;
   for (let ring = 0; ring < arcRings; ring++) {
     let a1 = map(ring, 0, arcRings, 0, HALF_PI);
     let a2 = map(ring + 1, 0, arcRings, 0, HALF_PI);
