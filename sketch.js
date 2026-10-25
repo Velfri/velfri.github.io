@@ -17,7 +17,9 @@ let currentPosX = 0;
 let ambientColor = [255, 100, 20];
 
 function setup() {
+  // Апаратне згладжування WebGL (повинно йти до createCanvas)
   setAttributes('antialias', true);
+  
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   smooth();
@@ -57,12 +59,12 @@ function draw() {
   currentPosX = lerp(currentPosX, targetX, 0.08);
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
-  // Оновлюємо ефект вогню
+  // Оновлюємо ефект вогню (кожен 2-й кадр)
   if (frameCount % 2 === 0) {
     updateEffect();
   }
 
-  // 1. СВІТІННЯ ЗЗАДУ
+  // 1. СВІТІННЯ ЗЗАДУ (Ambient Glow на стіну)
   push();
   translate(currentPosX, currentPosY, -150);
   drawBacklightGlow(280, 520, ambientColor);
@@ -83,7 +85,7 @@ function draw() {
   pop();
 }
 
-// Генерація безшовної текстури
+// Генерація безшовної розмитої текстури
 function updateEffect() {
   ledMatrix.background(0);
   ledMatrix.noStroke();
@@ -153,10 +155,10 @@ function drawBacklightGlow(w, h, col) {
   endShape();
 }
 
-// Чиста 3D-модель лампи без артефактних кругів
+// Гладка 3D-модель із сяючим куполом
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 48;
+  const detail = 64; // Висока деталізація для гладкого овала
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
@@ -191,66 +193,71 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // 2. БІЛИЙ МАТОВИЙ КОРПУС ПЛАФОНА (Основа)
-  const roundedTopRadius = r * 0.12;
+  // 2. СЯЮЧИЙ ПЛАФОН ТА СКУПЧЕНИЙ КУПОЛ (Суцільна сітка з текстурою)
+  const roundedTopRadius = r * 0.14;
   const cylinderTopY = -mainH + roundedTopRadius;
   const topSurfaceR = r - roundedTopRadius;
   const buttonR = r * 0.42;
   const topY = -mainH;
 
-  // Матовий біло-молочний пластик
-  fill(240, 242, 246);
+  tint(255, 245);
 
-  // А. Бічна стінка
-  beginShape(QUAD_STRIP);
-  for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    vertex(cos(a) * r, 0, sin(a) * r);
-    vertex(cos(a) * r, cylinderTopY, sin(a) * r);
-  }
-  endShape();
-
-  // Б. Плавна фаска верху (всього 2 проходи, що прибирає концентричні круги)
-  beginShape(QUAD_STRIP);
-  for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    vertex(cos(a) * r, cylinderTopY, sin(a) * r);
-    vertex(cos(a) * topSurfaceR, topY, sin(a) * topSurfaceR);
-  }
-  endShape();
-
-  // В. Верхній плоский торець
-  beginShape(QUAD_STRIP);
-  for (let i = 0; i <= detail; i++) {
-    let u = i / detail;
-    let a = u * TWO_PI + PI;
-    vertex(cos(a) * topSurfaceR, topY, sin(a) * topSurfaceR);
-    vertex(cos(a) * buttonR, topY, sin(a) * buttonR);
-  }
-  endShape();
-
-  // 3. СЯЙВО СВІТЛОДІОДІВ (Тільки на бічній поверхні!)
-  tint(255, 240);
+  // А. Бічна стінка циліндра
   beginShape(QUAD_STRIP);
   texture(glow);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
     let a = u * TWO_PI + PI;
     let texU = map(u, 0, 1, 0.333, 0.666);
-    vertex(cos(a) * (r + 0.3), 0, sin(a) * (r + 0.3), texU, 0.98);
-    vertex(cos(a) * (r + 0.3), cylinderTopY, sin(a) * (r + 0.3), texU, 0.05);
+    vertex(cos(a) * r, 0, sin(a) * r, texU, 0.98);
+    vertex(cos(a) * r, cylinderTopY, sin(a) * r, texU, 0.15);
+  }
+  endShape();
+
+  // Б. Плавний безшовний купол верху (4 плавні сегменти замість багатьох кілець)
+  const arcRings = 4;
+  for (let ring = 0; ring < arcRings; ring++) {
+    let a1 = map(ring, 0, arcRings, 0, HALF_PI);
+    let a2 = map(ring + 1, 0, arcRings, 0, HALF_PI);
+
+    let r1 = r - roundedTopRadius * (1 - cos(a1));
+    let r2 = r - roundedTopRadius * (1 - cos(a2));
+    let y1 = cylinderTopY - sin(a1) * roundedTopRadius;
+    let y2 = cylinderTopY - sin(a2) * roundedTopRadius;
+
+    let v1 = map(ring, 0, arcRings, 0.15, 0.04);
+    let v2 = map(ring + 1, 0, arcRings, 0.15, 0.04);
+
+    beginShape(QUAD_STRIP);
+    texture(glow);
+    for (let i = 0; i <= detail; i++) {
+      let u = i / detail;
+      let a = u * TWO_PI + PI;
+      let texU = map(u, 0, 1, 0.333, 0.666);
+      vertex(cos(a) * r1, y1, sin(a) * r1, texU, v1);
+      vertex(cos(a) * r2, y2, sin(a) * r2, texU, v2);
+    }
+    endShape();
+  }
+
+  // В. Верхній плоский торець навколо кнопки (підсвічений)
+  beginShape(QUAD_STRIP);
+  texture(glow);
+  for (let i = 0; i <= detail; i++) {
+    let u = i / detail;
+    let a = u * TWO_PI + PI;
+    let texU = map(u, 0, 1, 0.333, 0.666);
+    vertex(cos(a) * topSurfaceR, topY, sin(a) * topSurfaceR, texU, 0.04);
+    vertex(cos(a) * buttonR, topY, sin(a) * buttonR, texU, 0.01);
   }
   endShape();
   noTint();
 
-  // 4. ОБ'ЄМНА КНОПКА З ЧІТКИМ КОНТУРОМ
+  // 3. ОБ'ЄМНА КНОПКА В ЦЕНТРІ
   const buttonHeight = 3.5;
   const btnTopY = topY - buttonHeight;
 
-  // Боковина кнопки
-  fill(170, 173, 180);
+  fill(175, 178, 185);
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
@@ -260,7 +267,6 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // Фаска кнопки
   fill(190, 193, 200);
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
@@ -271,7 +277,6 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // Площина кнопки
   fill(215, 218, 225);
   beginShape(TRIANGLE_FAN);
   vertex(0, btnTopY, 0);
