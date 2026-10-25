@@ -53,5 +53,25 @@
   <!-- Підключення вашого скрипту 3D-лампи -->
   <div id="fps-counter" aria-hidden="true">FPS --</div>
   <script src="sketch.js"></script>
+  <script>
+    (() => {
+      const counter = document.getElementById('fps-counter');
+      let lastUpdate = performance.now();
+      let frames = 0;
+
+      function updateCounter(now) {
+        frames++;
+        const elapsed = now - lastUpdate;
+        if (elapsed >= 1000) {
+          counter.textContent = `FPS ${Math.round(frames * 1000 / elapsed)}`;
+          frames = 0;
+          lastUpdate = now;
+        }
+        requestAnimationFrame(updateCounter);
+      }
+
+      requestAnimationFrame(updateCounter);
+    })();
+  </script>
 </body>
 </html>

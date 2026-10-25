@@ -1,8 +1,6 @@
 let ledMatrix;   // Буфер для точкової матриці 16x16
 let glowTexture; // Розмита безшовна текстура
 let mobileQuality = false;
-let fpsCounter;
-let lastFpsUpdate = 0;
 let lampOn = true;
 let lightLevel = 1;
 let fadeStartLevel = 1;
@@ -29,7 +27,6 @@ let ambientColor = [255, 100, 20];
 function setup() {
   setAttributes('antialias', true);
   createCanvas(windowWidth, windowHeight, WEBGL);
-  fpsCounter = document.getElementById('fps-counter');
 
   smooth();
   mobileQuality = min(windowWidth, windowHeight) < 768;
@@ -43,11 +40,6 @@ function setup() {
 
 function draw() {
   background(18, 20, 26);
-
-  if (fpsCounter && millis() - lastFpsUpdate >= 500) {
-    fpsCounter.textContent = `FPS ${Math.round(frameRate())}`;
-    lastFpsUpdate = millis();
-  }
 
   // Ортографічна проєкція
   ortho(-width / 2, width / 2, -height / 2, height / 2, -1000, 1000);
@@ -245,32 +237,35 @@ function drawFullLamp(r, mainH, baseH, glow) {
   shellRings.push({ radius: buttonR, y: topY, v: 0.01 });
 
   tint(255, shellAlpha);
+  beginShape(TRIANGLES);
+  texture(glow);
   for (let ring = 0; ring < shellRings.length - 1; ring++) {
-    const currentRing = shellRings[ring];
-    const nextRing = shellRings[ring + 1];
-    beginShape(QUAD_STRIP);
-    texture(glow);
-    for (let i = 0; i <= detail; i++) {
+    for (let i = 0; i < detail; i++) {
       const u = i / detail;
       const angle = u * TWO_PI + PI;
+      const nextAngle = (i + 1) / detail * TWO_PI + PI;
       const texU = map(u, 0, 1, 0.333, 0.666);
-      vertex(
-        cos(angle) * currentRing.radius,
-        currentRing.y,
-        sin(angle) * currentRing.radius,
-        texU,
-        currentRing.v
-      );
-      vertex(
-        cos(angle) * nextRing.radius,
-        nextRing.y,
-        sin(angle) * nextRing.radius,
-        texU,
-        nextRing.v
-      );
+      const nextTexU = map((i + 1) / detail, 0, 1, 0.333, 0.666);
+      const currentRing = shellRings[ring];
+      const nextRing = shellRings[ring + 1];
+      const currentX = cos(angle) * currentRing.radius;
+      const currentZ = sin(angle) * currentRing.radius;
+      const nextX = cos(angle) * nextRing.radius;
+      const nextZ = sin(angle) * nextRing.radius;
+      const currentNextX = cos(nextAngle) * currentRing.radius;
+      const currentNextZ = sin(nextAngle) * currentRing.radius;
+      const nextNextX = cos(nextAngle) * nextRing.radius;
+      const nextNextZ = sin(nextAngle) * nextRing.radius;
+
+      vertex(currentX, currentRing.y, currentZ, texU, currentRing.v);
+      vertex(currentNextX, currentRing.y, currentNextZ, nextTexU, currentRing.v);
+      vertex(nextX, nextRing.y, nextZ, texU, nextRing.v);
+      vertex(currentNextX, currentRing.y, currentNextZ, nextTexU, currentRing.v);
+      vertex(nextNextX, nextRing.y, nextNextZ, nextTexU, nextRing.v);
+      vertex(nextX, nextRing.y, nextZ, texU, nextRing.v);
     }
-    endShape();
   }
+  endShape();
   noTint();
 
   // 3. ОБ'ЄМНА КНОПКА В ЦЕНТРІ
