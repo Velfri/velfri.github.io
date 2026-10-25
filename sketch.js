@@ -17,9 +17,7 @@ let currentPosX = 0;
 let ambientColor = [255, 100, 20];
 
 function setup() {
-  // Апаратне згладжування WebGL (повинно йти до createCanvas)
   setAttributes('antialias', true);
-  
   createCanvas(windowWidth, windowHeight, WEBGL);
 
   smooth();
@@ -59,12 +57,12 @@ function draw() {
   currentPosX = lerp(currentPosX, targetX, 0.08);
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
-  // Оновлюємо ефект вогню (кожен 2-й кадр)
+  // Оновлюємо ефект вогню
   if (frameCount % 2 === 0) {
     updateEffect();
   }
 
-  // 1. СВІТІННЯ ЗЗАДУ (Ambient Glow на стіну)
+  // 1. СВІТІННЯ ЗЗАДУ
   push();
   translate(currentPosX, currentPosY, -150);
   drawBacklightGlow(280, 520, ambientColor);
@@ -85,7 +83,7 @@ function draw() {
   pop();
 }
 
-// Генерація безшовної розмитої текстури
+// Генерація безшовної текстури
 function updateEffect() {
   ledMatrix.background(0);
   ledMatrix.noStroke();
@@ -137,7 +135,7 @@ function updateEffect() {
   glowTexture.filter(BLUR, 4);
 }
 
-// Світловий німб ззаду
+// Заднє сяйво
 function drawBacklightGlow(w, h, col) {
   noStroke();
   beginShape(TRIANGLE_FAN);
@@ -155,10 +153,10 @@ function drawBacklightGlow(w, h, col) {
   endShape();
 }
 
-// Гладка 3D-модель із сяючим куполом
+// Плавне дугове скруглення купола без сходинок
 function drawFullLamp(r, mainH, baseH, glow) {
   textureMode(NORMAL);
-  const detail = 64; // Висока деталізація для гладкого овала
+  const detail = 64;
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
@@ -193,8 +191,8 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // 2. СЯЮЧИЙ ПЛАФОН ТА СКУПЧЕНИЙ КУПОЛ (Суцільна сітка з текстурою)
-  const roundedTopRadius = r * 0.14;
+  // 2. БЕЗШОВНИЙ СУЦІЛЬНИЙ КОРПУС ПЛАФОНА З ПЛАВНИМ КУПОЛОМ
+  const roundedTopRadius = r * 0.16; // Радіус купола
   const cylinderTopY = -mainH + roundedTopRadius;
   const topSurfaceR = r - roundedTopRadius;
   const buttonR = r * 0.42;
@@ -214,19 +212,19 @@ function drawFullLamp(r, mainH, baseH, glow) {
   }
   endShape();
 
-  // Б. Плавний безшовний купол верху (4 плавні сегменти замість багатьох кілець)
-  const arcRings = 4;
-  for (let ring = 0; ring < arcRings; ring++) {
-    let a1 = map(ring, 0, arcRings, 0, HALF_PI);
-    let a2 = map(ring + 1, 0, arcRings, 0, HALF_PI);
+  // Б. Плавне плавне дугове скруглення купола (Суцільна сітка)
+  const arcSteps = 5; // Оптимальна кількість сегментів дуги для мобільних
+  for (let step = 0; step < arcSteps; step++) {
+    let angle1 = map(step, 0, arcSteps, 0, HALF_PI);
+    let angle2 = map(step + 1, 0, arcSteps, 0, HALF_PI);
 
-    let r1 = r - roundedTopRadius * (1 - cos(a1));
-    let r2 = r - roundedTopRadius * (1 - cos(a2));
-    let y1 = cylinderTopY - sin(a1) * roundedTopRadius;
-    let y2 = cylinderTopY - sin(a2) * roundedTopRadius;
+    let currentR1 = r - roundedTopRadius * (1 - cos(angle1));
+    let currentR2 = r - roundedTopRadius * (1 - cos(angle2));
+    let currentY1 = cylinderTopY - sin(angle1) * roundedTopRadius;
+    let currentY2 = cylinderTopY - sin(angle2) * roundedTopRadius;
 
-    let v1 = map(ring, 0, arcRings, 0.15, 0.04);
-    let v2 = map(ring + 1, 0, arcRings, 0.15, 0.04);
+    let v1 = map(step, 0, arcSteps, 0.15, 0.04);
+    let v2 = map(step + 1, 0, arcSteps, 0.15, 0.04);
 
     beginShape(QUAD_STRIP);
     texture(glow);
@@ -234,13 +232,13 @@ function drawFullLamp(r, mainH, baseH, glow) {
       let u = i / detail;
       let a = u * TWO_PI + PI;
       let texU = map(u, 0, 1, 0.333, 0.666);
-      vertex(cos(a) * r1, y1, sin(a) * r1, texU, v1);
-      vertex(cos(a) * r2, y2, sin(a) * r2, texU, v2);
+      vertex(cos(a) * currentR1, currentY1, sin(a) * currentR1, texU, v1);
+      vertex(cos(a) * currentR2, currentY2, sin(a) * currentR2, texU, v2);
     }
     endShape();
   }
 
-  // В. Верхній плоский торець навколо кнопки (підсвічений)
+  // В. Верхній плоский торець навколо кнопки
   beginShape(QUAD_STRIP);
   texture(glow);
   for (let i = 0; i <= detail; i++) {
