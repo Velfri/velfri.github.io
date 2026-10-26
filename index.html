@@ -6,513 +6,195 @@
   <title>Smart Lamp</title>
   <meta name="theme-color" content="#12141A">
   <meta name="description" content="Керування світловими ефектами Smart Lamp">
-
-  <!-- PWA та налаштування для iOS (Safari) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Smart Lamp">
   <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
   <link rel="manifest" href="manifest.json">
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --bg: #12141a;
+      --accent: #ff9b50;
+      --text: #f4f4f6;
+      --muted: #9a9ea9;
+      --glass: rgba(24, 26, 33, 0.72);
+      --line: rgba(255, 255, 255, 0.1);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
-    html, body {
-      width: 100%;
-      min-height: 100%;
-      overflow-x: hidden;
-      background-color: #12141A;
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
+    html, body { min-height: 100%; background: var(--bg); color: var(--text); overflow-x: hidden; }
+    body { min-height: 100svh; touch-action: manipulation; }
+    button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; touch-action: manipulation; }
+    :focus-visible { outline: 2px solid #ffd19b; outline-offset: 2px; }
+
+    #scene { position: fixed; inset: 0; z-index: 1; touch-action: pan-y; }
+    #scene canvas { width: 100%; height: 100%; display: block; }
+
+    .glass {
+      background: var(--glass);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      backdrop-filter: blur(20px) saturate(140%);
     }
-    body {
-      color: #f1f1f2;
-      font-family: system-ui, sans-serif;
-    }
-    #scene {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      overflow: hidden;
-      background: #12141A;
-      touch-action: pan-y;
-    }
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-    #fps-counter {
-      position: fixed;
-      top: calc(env(safe-area-inset-top) + 8px);
-      left: calc(env(safe-area-inset-left) + 8px);
-      z-index: 10;
-      padding: 4px 7px;
-      border-radius: 3px;
-      background: rgba(18, 20, 26, 0.72);
-      color: rgba(255, 255, 255, 0.82);
-      font: 11px/1.2 monospace;
-      pointer-events: none;
-    }
-    #controls {
-      position: relative;
-      z-index: 2;
-      min-height: 100svh;
-      margin-top: 100svh;
-      padding: 34px 20px calc(36px + env(safe-area-inset-bottom));
-      background: #181a20;
-      border-top: 1px solid #343740;
-    }
-    .controls-inner {
-      width: min(100%, 560px);
-      margin: 0 auto;
-    }
-    .controls-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 22px;
-    }
-    .controls-header h1 {
-      font-size: 19px;
-      font-weight: 600;
-    }
-    .power-button,
-    .seed-button,
-    .effect-button {
-      min-height: 42px;
-      border: 1px solid #41444d;
-      border-radius: 6px;
-      background: #22252d;
-      color: inherit;
-      font: inherit;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-    .power-button {
-      padding: 0 14px;
-      border-color: #a94e26;
-      background: #38251f;
-    }
-    .control-section {
-      padding: 20px 0;
-      border-top: 1px solid #343740;
-    }
-    .section-heading,
-    .range-heading {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 12px;
-    }
-    .section-heading h2,
-    .range-heading label {
-      font-size: 15px;
-      font-weight: 550;
-    }
-    output {
-      color: #b7bac2;
-      font-variant-numeric: tabular-nums;
-    }
-    input[type="range"] {
-      display: block;
-      width: 100%;
-      height: 28px;
-      accent-color: #ff7a32;
-      touch-action: pan-x;
-    }
-    .effect-options {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .effect-button {
-      padding: 0 8px;
-      font-size: 14px;
-    }
-    .effect-button[aria-pressed="true"] {
-      border-color: #ff8a45;
-      background: #58301f;
-      color: #fff4eb;
-    }
-    .color-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-    .color-row label {
-      font-size: 14px;
-    }
-    input[type="color"] {
-      width: 54px;
-      height: 40px;
-      padding: 3px;
-      border: 1px solid #41444d;
-      border-radius: 6px;
-      background: #22252d;
-    }
-    .seed-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-    .seed-row p {
-      color: #b7bac2;
-      font-size: 13px;
-    }
-    .seed-button {
-      flex: 0 0 auto;
-      padding: 0 12px;
-      font-size: 13px;
-    }
-    .sync-note {
-      margin-top: 20px;
-      color: #8e929c;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-    html, body {
-      height: 100%;
-      overflow: hidden;
-    }
-    body {
-      position: relative;
-      background: #111217;
-      font-family: "Plus Jakarta Sans", sans-serif;
-      touch-action: manipulation;
-    }
-    #bg-glow {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      pointer-events: none;
-      opacity: 0;
-      background: radial-gradient(ellipse at 50% 48%, var(--glow-color, #ff7420) 0%, rgba(17, 18, 23, 0) 68%);
-      transition: opacity 300ms ease;
-    }
-    #scene {
-      position: fixed;
-      inset: 0;
-      z-index: 1;
-      touch-action: none;
-    }
-    #scene canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    #fps-counter {
-      top: calc(env(safe-area-inset-top) + 10px);
-      left: calc(env(safe-area-inset-left) + 10px);
-      z-index: 8;
-      background: rgba(10, 11, 15, 0.68);
-      backdrop-filter: blur(10px);
-    }
-    .glass-panel {
-      background: rgba(21, 22, 29, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.11);
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-    }
-    .app-header {
-      position: fixed;
-      z-index: 6;
-      top: calc(env(safe-area-inset-top) + 18px);
-      left: 18px;
-      right: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      pointer-events: none;
-    }
-    .brand-chip, .power-button {
-      min-height: 46px;
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0 14px;
-      border-radius: 14px;
-      color: #f5f5f6;
-      pointer-events: auto;
-    }
-    .brand-chip {
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .brand-chip [data-lucide="lamp"] { color: #ffb254; }
-    .power-button {
-      justify-content: center;
-      width: 48px;
-      padding: 0;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-    .power-button[aria-pressed="true"] [data-lucide] { color: #76dfa6; }
-    .power-button[aria-pressed="false"] [data-lucide] { color: #ff8c84; }
-    #power-badge {
-      padding: 3px 7px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.08);
-      color: #c4c6cd;
-      font-size: 9px;
-      font-weight: 700;
-    }
-    #power-badge[data-on="true"] { color: #83e0ad; }
-    #power-status { display: none; }
+    .i { width: 20px; height: 20px; flex: none; }
+    #toast { position: fixed; z-index: 8; left: 50%; top: calc(env(safe-area-inset-top) + 18px); transform: translate(-50%, -8px); padding: 9px 16px; border-radius: 14px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .preset-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .preset-chip { display: inline-flex; align-items: center; border-radius: 99px; background: rgba(255,255,255,.07); border: 1px solid transparent; }
+    .preset-chip[aria-current="true"] { border-color: rgba(255,155,80,.8); background: rgba(255,155,80,.14); }
+    .preset-chip button { font-size: 12px; min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; }
+    .preset-chip button[data-del] { padding: 0 11px 0 2px; color: var(--muted); font-size: 16px; }
+    .chip-sw { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
+    .preset-actions { display: flex; gap: 8px; }
+
     .control-panel {
-      position: fixed;
-      z-index: 6;
-      left: 50%;
-      bottom: max(16px, env(safe-area-inset-bottom));
-      width: min(460px, calc(100% - 28px));
-      max-height: min(58dvh, 470px);
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      transform: translateX(-50%);
-      padding: 17px 18px 15px;
-      border-radius: 20px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(255,255,255,.2) transparent;
+      position: relative; z-index: 6;
+      width: min(460px, calc(100% - 24px));
+      margin: 100svh auto calc(16px + env(safe-area-inset-bottom));
+      padding: 14px 18px 18px; border-radius: 26px;
     }
-    .panel-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
+    .grab { width: 38px; height: 4px; margin: 0 auto 14px; border-radius: 9px; background: rgba(255,255,255,.2); }
+    .block + .block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .label { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #c9cbd3; }
+    .label .i { width: 15px; height: 15px; }
+    .value { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .value b { color: var(--text); font-weight: 600; }
+    .actual-brightness { margin-left: 6px; font-size: 11px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+
+    .effect-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 8px; }
+    .effect-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; border-radius: 16px; }
+    .tile-swatch {
+      width: 100%; max-width: 62px; aspect-ratio: 1; border-radius: 18px;
+      border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+      transition: transform .15s, box-shadow .2s;
     }
-    .panel-row + .panel-row { margin-top: 15px; }
-    .control-label {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      color: #b9bbc3;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .color-tools, .swatches, .mode-options {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .color-swatch {
-      width: 25px;
-      height: 25px;
-      flex: 0 0 auto;
-      border: 2px solid rgba(255,255,255,.12);
-      border-radius: 50%;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-    .color-swatch:focus-visible, button:focus-visible, input:focus-visible {
-      outline: 2px solid #ffd19b;
-      outline-offset: 2px;
-    }
-    #mono-color {
-      width: 30px;
-      height: 30px;
-      padding: 2px;
-      border: 1px solid rgba(255,255,255,.18);
-      border-radius: 50%;
-      background: rgba(0,0,0,.25);
-      cursor: pointer;
-    }
+    .tile-name { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .effect-tile:active .tile-swatch { transform: scale(.94); }
+    .effect-tile[aria-pressed="true"] .tile-swatch { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,155,80,.45), 0 6px 18px rgba(0,0,0,.4); }
+    .effect-tile[aria-pressed="true"] .tile-name { color: var(--text); font-weight: 600; }
+
+    .swatches { display: flex; align-items: center; gap: 9px; }
+    .color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); }
+    #mono-color { width: 32px; height: 32px; padding: 2px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(0,0,0,.25); cursor: pointer; }
     #mono-color::-webkit-color-swatch-wrapper { padding: 0; }
     #mono-color::-webkit-color-swatch { border: 0; border-radius: 50%; }
-    .range-block { display: block; }
-    .range-heading {
-      margin: 0 0 7px;
-      font-size: 11px;
-    }
-    .range-heading label { font-size: 12px; font-weight: 500; }
-    input[type="range"] {
-      height: 5px;
-      accent-color: #ff9b50;
-    }
-    .mode-row {
-      padding-top: 13px;
-      border-top: 1px solid rgba(255,255,255,.1);
-    }
-    .mode-options {
-      gap: 3px;
-      padding: 3px;
-      border-radius: 11px;
-      background: rgba(0,0,0,.28);
-    }
-    .effect-button {
-      min-height: 32px;
-      padding: 0 9px;
-      border: 0;
-      border-radius: 8px;
-      background: transparent;
-      color: #a5a7af;
-      font-size: 11px;
-      white-space: nowrap;
-    }
-    .effect-button[aria-pressed="true"] {
-      background: rgba(255,255,255,.14);
-      color: #fff;
-    }
-    #mono-config { min-height: 30px; }
-    #mono-config[hidden] { display: none; }
-    .seed-row {
-      padding-top: 11px;
-      border-top: 1px solid rgba(255,255,255,.1);
-    }
-    .seed-button {
-      min-height: 34px;
-      padding: 0 10px;
-      border-radius: 9px;
-      font-size: 11px;
-    }
-    .sync-note { display: none; }
+    #mono-color::-moz-color-swatch { border: 0; border-radius: 50%; }
+
+    input[type="range"] { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 28px; background: transparent; touch-action: pan-y; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 9px; background: linear-gradient(90deg, var(--accent) var(--p, 50%), rgba(255,255,255,.14) var(--p, 50%)); }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+    input[type="range"]::-moz-range-track { height: 6px; border-radius: 9px; background: rgba(255,255,255,.14); }
+    input[type="range"]::-moz-range-progress { height: 6px; border-radius: 9px; background: var(--accent); }
+    input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: #fff; }
+
+    .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; border-radius: 12px; background: rgba(0,0,0,.3); }
+    .curve-button { min-height: 32px; padding: 0 10px; border-radius: 9px; font-size: 11px; color: var(--muted); white-space: nowrap; transition: background .2s; }
+    .curve-button[aria-pressed="true"] { background: rgba(255,255,255,.15); color: #fff; }
+    .seed-button { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 13px; border-radius: 11px; font-size: 12px; }
+
+    #fps-counter { position: fixed; z-index: 9; left: 10px; bottom: 10px; padding: 3px 7px; border-radius: 6px; background: rgba(0,0,0,.6); font: 11px monospace; pointer-events: none; }
+
+    html { scrollbar-width: none; }
+    html::-webkit-scrollbar { display: none; }
+    .control-panel { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; }
+    .control-panel::-webkit-scrollbar { width: 4px; }
+    .control-panel::-webkit-scrollbar-track { background: transparent; margin: 18px 0; }
+    .control-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 9px; }
+    .control-panel::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); }
+
     @media (max-width: 380px) {
-      .control-panel { padding: 14px 13px 12px; }
-      .color-tools, .swatches { gap: 5px; }
-      .color-swatch { width: 23px; height: 23px; }
-      .effect-button { padding: 0 7px; font-size: 10px; }
-      .app-header { left: 13px; right: 13px; }
-    }
-    @media (max-height: 650px) {
-      .control-panel { max-height: 48dvh; padding-top: 12px; }
-      .panel-row + .panel-row { margin-top: 10px; }
-    }
-    html, body {
-      height: auto;
-      min-height: 100%;
-      overflow-x: hidden;
-      overflow-y: auto;
-      touch-action: auto;
-    }
-    body { min-height: 100svh; }
-    #scene { touch-action: pan-y; }
-    .control-panel {
-      position: relative;
-      top: auto;
-      right: auto;
-      bottom: auto;
-      left: auto;
-      width: min(460px, calc(100% - 28px));
-      max-height: none;
-      margin: 100svh auto 24px;
-      transform: none;
-      overflow: visible;
-    }
-    .control-panel #fps-counter {
-      position: static;
-      display: block;
-      width: fit-content;
-      margin-bottom: 14px;
-      padding: 0;
-      background: transparent;
-      box-shadow: none;
-      backdrop-filter: none;
+      .control-panel { padding: 12px 14px 16px; }
     }
     @media (orientation: landscape) and (min-width: 600px) {
       html, body { height: 100%; overflow: hidden; }
       .control-panel {
-        position: fixed;
-        top: max(16px, env(safe-area-inset-top));
-        right: max(16px, env(safe-area-inset-right));
-        bottom: max(16px, env(safe-area-inset-bottom));
-        left: auto;
-        width: min(340px, 38vw);
-        max-height: none;
-        margin: 0;
-        transform: none;
-        overflow-y: auto;
+        position: fixed; margin: 0; width: min(350px, 40vw); overflow-y: auto; overscroll-behavior: contain;
+        top: max(74px, env(safe-area-inset-top)); bottom: max(14px, env(safe-area-inset-bottom));
+        right: max(14px, env(safe-area-inset-right));
       }
+      .grab { display: none; }
+      .effect-list { grid-template-columns: repeat(3, 1fr); }
     }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
-  <div id="bg-glow"></div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  </svg>
+
   <div id="scene" aria-label="Візуалізація лампи"></div>
-  <section class="glass-panel control-panel" aria-label="Керування лампою">
-    <div id="fps-counter" aria-hidden="true">FPS --</div>
-    <div class="panel-row">
-      <span class="control-label">Колір</span>
-      <div class="color-tools">
-        <div class="swatches" aria-label="Швидкий вибір кольору">
-          <button class="color-swatch" type="button" data-color="#ff5500" style="background:#ff5500" aria-label="Помаранчевий"></button>
-          <button class="color-swatch" type="button" data-color="#ffaa00" style="background:#ffaa00" aria-label="Бурштиновий"></button>
-          <button class="color-swatch" type="button" data-color="#00c9d8" style="background:#00c9d8" aria-label="Бірюзовий"></button>
-          <button class="color-swatch" type="button" data-color="#9d62ff" style="background:#9d62ff" aria-label="Фіолетовий"></button>
-          <button class="color-swatch" type="button" data-color="#ff4778" style="background:#ff4778" aria-label="Рожевий"></button>
-        </div>
+
+  <section class="glass control-panel" aria-label="Керування лампою">
+    <div class="grab"></div>
+
+    <div class="block">
+      <div class="head"><span class="label">Мої налаштування</span><span class="value">свайп ← → по лампі</span></div>
+      <div id="preset-list" class="preset-list"></div>
+      <div class="preset-actions">
+        <button id="preset-add" class="seed-button glass" type="button">＋ Додати поточне</button>
+        <button id="preset-update" class="seed-button glass" type="button">Оновити активне</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="label">Ефекти</span><span class="value"><b id="effect-name"></b></span></div>
+      <div id="effect-list" class="effect-list" role="group" aria-label="Вибір ефекту"></div>
+    </div>
+
+    <div id="color-row" class="block row" hidden>
+      <span class="label">Колір</span>
+      <div class="swatches">
+        <button class="color-swatch" type="button" data-color="#ff5500" style="background:#ff5500" aria-label="Помаранчевий"></button>
+        <button class="color-swatch" type="button" data-color="#ffaa00" style="background:#ffaa00" aria-label="Бурштиновий"></button>
+        <button class="color-swatch" type="button" data-color="#00c9d8" style="background:#00c9d8" aria-label="Бірюзовий"></button>
+        <button class="color-swatch" type="button" data-color="#9d62ff" style="background:#9d62ff" aria-label="Фіолетовий"></button>
+        <button class="color-swatch" type="button" data-color="#ff4778" style="background:#ff4778" aria-label="Рожевий"></button>
         <input id="mono-color" type="color" value="#ff7420" aria-label="Вибрати колір">
       </div>
     </div>
 
-    <div class="panel-row range-block">
-      <div class="range-heading">
-        <label for="brightness"><i data-lucide="sun" width="13" height="13"></i> Яскравість</label>
-        <output id="brightness-value" for="brightness">100%</output>
+    <div class="block">
+      <div class="head">
+        <label class="label" for="brightness"><svg class="i"><use href="#i-sun"/></svg>Яскравість</label>
+        <span class="value"><b id="brightness-value">100%</b><span class="actual-brightness">світло <span id="led-brightness">100%</span></span></span>
       </div>
       <input id="brightness" type="range" min="0" max="100" value="100">
-    </div>
-
-    <div class="panel-row mode-row">
-      <span class="control-label">Ефект</span>
-      <div class="mode-options" role="group" aria-label="Режим ефекту">
-        <button class="effect-button" type="button" data-effect="fire" aria-pressed="true">Вогонь</button>
-        <button class="effect-button" type="button" data-effect="mono" aria-pressed="false">Моно</button>
-        <button class="effect-button" type="button" data-effect="rainbow" aria-pressed="false">Райдуга</button>
+      <div class="segmented" role="group" aria-label="Характер яскравості" style="margin-top:10px">
+        <button class="curve-button" type="button" data-curve="soft" aria-pressed="false">М’яка</button>
+        <button class="curve-button" type="button" data-curve="linear" aria-pressed="true">Лінійна</button>
+        <button class="curve-button" type="button" data-curve="precise" aria-pressed="false">Точна</button>
       </div>
     </div>
 
-    <div id="mono-config" class="panel-row" hidden>
-      <span class="control-label">Колір монохрому</span>
-      <span class="control-label">Вибери вище</span>
-    </div>
-
-    <div class="panel-row range-block">
-      <div class="range-heading">
-        <label for="effect-speed"><i data-lucide="gauge" width="13" height="13"></i> Швидкість</label>
-        <output id="effect-speed-value" for="effect-speed">1.0×</output>
+    <div class="block">
+      <div class="head">
+        <label class="label" for="effect-speed"><svg class="i"><use href="#i-gauge"/></svg>Швидкість</label>
+        <span class="value"><b id="effect-speed-value">1.0×</b></span>
       </div>
       <input id="effect-speed" type="range" min="25" max="200" value="100">
     </div>
 
-    <div class="panel-row seed-row">
-      <span class="control-label">Seed <output id="effect-seed"></output></span>
-      <button id="new-seed" class="glass-panel seed-button" type="button">Новий варіант</button>
+    <div class="block row">
+      <span class="label">Варіант <span class="value" id="effect-seed"></span></span>
+      <button id="new-seed" class="seed-button glass" type="button"><svg class="i" style="width:15px;height:15px"><use href="#i-shuffle"/></svg>Новий</button>
     </div>
   </section>
 
+  <div id="toast" class="glass" role="status"></div>
+  <div id="fps-counter" hidden></div>
+
   <script src="sketch.js"></script>
   <script>
-    (() => {
-      const counter = document.getElementById('fps-counter');
-      let lastUpdate = performance.now();
-      let frames = 0;
-
-      function updateCounter(now) {
-        frames++;
-        const elapsed = now - lastUpdate;
-        if (elapsed >= 1000) {
-          counter.textContent = `FPS ${Math.round(frames * 1000 / elapsed)}`;
-          frames = 0;
-          lastUpdate = now;
-        }
-        requestAnimationFrame(updateCounter);
-      }
-
-      requestAnimationFrame(updateCounter);
-    })();
-    window.addEventListener('load', () => lucide.createIcons());
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js', { scope: './' }).catch(() => {});

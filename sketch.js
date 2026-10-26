@@ -1,5 +1,6 @@
 let ledMatrix;   // Буфер для точкової матриці 16x16
 let glowTexture; // Розмита безшовна текстура
+let effectOverlayTexture;
 let mobileQuality = false;
 let lampOn = true;
 let lightLevel = 1;
@@ -9,17 +10,175 @@ let fadeTargetLevel = 1;
 let fadeStartedAt = 0;
 let effectNeedsRefresh = true;
 const fadeDuration = 700;
+const effectOverlayOpacity = 1;
 let effectState = {
   mode: 'fire',
   brightness: 100,
+  brightnessCurve: 'linear',
   speed: 1,
   color: '#ff7420',
   seed: 1,
   epochMs: Date.now(),
 };
 
+
+// ===== РЕЄСТР ЕФЕКТІВ: щоб додати новий, достатньо додати об'єкт сюди =====
+// pixel(c) отримує {x,y,nx,nz,t,seed,color} і повертає [r,g,b,alpha] або null
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const EFFECTS = [
+  { id: 'fire', name: 'Вогонь', preview: 'linear-gradient(0deg,#ff2a00,#ff9a1f,#ffd36b)',
+    pixel: (c) => {
+      const heat = smoothNoise(c.nx, c.y * 0.16 - c.t * 0.8, c.nz + c.t * 0.12, c.seed);
+      const th = 0.42 + c.y / rows * 0.12;
+      if (heat <= th) return null;
+      const k = constrain((heat - th) / (0.9 - th), 0, 1);
+      return [255, lerp(12, 220, k), lerp(0, 34, k), lerp(235, 255, k)];
+    } },
+  { id: 'mono', name: 'Колір', usesColor: true, preview: 'linear-gradient(135deg,#ff7420,#ffb46b)',
+    pixel: (c) => [...c.color, 255] },
+  { id: 'rainbow', name: 'Райдуга', preview: 'linear-gradient(90deg,#ff3b3b,#ffd23b,#3bff6e,#3bc8ff,#9b3bff)',
+    pixel: (c) => [...hsvToRgb(c.x / cols * 360 + c.t * 80 + c.seed % 360), 255] },
+  { id: 'aurora', name: 'Аврора', preview: 'linear-gradient(135deg,#00ff96,#4aa8ff,#9646ff)',
+    pixel: (c) => {
+      const n = smoothNoise(c.nx, c.y * 0.14 + c.t * 0.25, c.nz - c.t * 0.1, c.seed);
+      return [...mix([0, 255, 150], [150, 70, 255], n), lerp(190, 255, n)];
+    } },
+  { id: 'ocean', name: 'Океан', preview: 'linear-gradient(135deg,#0032aa,#14e1eb)',
+    pixel: (c) => {
+      const w = 0.5 + 0.5 * Math.sin(c.x / cols * TWO_PI * 2 + c.y * 0.45 - c.t * 2);
+      return [...mix([0, 50, 170], [20, 225, 235], w), 255];
+    } },
+  { id: 'sunset', name: 'Захід', preview: 'linear-gradient(0deg,#9632d2,#ffaf32,#ff4628)',
+    pixel: (c) => {
+      const k = constrain(c.y / (rows - 1) + 0.15 * Math.sin(c.t * 0.5 + c.x * 0.4), 0, 1);
+      const col = k < 0.5 ? mix([255, 70, 40], [255, 175, 50], k * 2) : mix([255, 175, 50], [150, 50, 210], (k - 0.5) * 2);
+      return [...col, 255];
+    } },
+  { id: 'breathe', name: 'Дихання', usesColor: true, preview: 'radial-gradient(circle,#ffd9b8,#ff7420 60%,#3a1a0c)',
+    pixel: (c) => [...c.color, lerp(60, 255, 0.5 + 0.5 * Math.sin(c.t * 1.6))] },
+  { id: 'sparkle', name: 'Іскри', usesColor: true, preview: 'radial-gradient(circle at 30% 30%,#fff 0 6%,transparent 7%),radial-gradient(circle at 70% 60%,#fff 0 5%,transparent 6%),#2a2c36',
+    pixel: (c) => hashNoise(c.x, c.y, Math.floor(c.t * 5), c.seed) > 0.86 ? [...c.color, 255] : [...c.color, 55] },
+];
+function getEffect() { return EFFECTS.find((e) => e.id === effectState.mode) || EFFECTS[0]; }
+
+const STORE_KEY = 'smart-lamp-state-v1';
+let lampDetail = 96;
+let fpsAvg = 60, qualityStep = 0, lastFpsText = 0, qualityCheckAt = 4000;
+
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...effectState, power: lampOn })); } catch (e) {}
+}
+function loadSavedState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (!saved) return;
+    const { power, epochMs, ...rest } = saved;
+    effectState = { ...effectState, ...rest };
+    if (!EFFECTS.some((e) => e.id === effectState.mode)) effectState.mode = 'fire';
+    if (power === false) { lampOn = false; lightLevel = fadeStartLevel = fadeTargetLevel = 0; }
+  } catch (e) {}
+}
+function getDensity() {
+  const cap = [3, 1.5, 1][qualityStep];
+  return min(window.devicePixelRatio || 1, mobileQuality ? 2.5 : 2, cap);
+}
+// Автоматично знижує якість, якщо пристрій не тягне 60 FPS
+function monitorPerformance() {
+  fpsAvg = lerp(fpsAvg, frameRate() || 60, 0.05);
+  const now = millis();
+  if (location.hash === '#debug' && now - lastFpsText > 500) {
+    lastFpsText = now;
+    const el = document.getElementById('fps-counter');
+    el.hidden = false;
+    el.textContent = `FPS ${Math.round(fpsAvg)} · q${qualityStep}`;
+  }
+  if (now > qualityCheckAt && fpsAvg < 38 && qualityStep < 2 && document.visibilityState === 'visible') {
+    qualityStep++;
+    lampDetail = qualityStep === 1 ? 64 : 40;
+    pixelDensity(getDensity());
+    qualityCheckAt = now + 4000;
+    fpsAvg = 60;
+  }
+}
+
 const cols = 16;
 const rows = 16;
+const cells = new Float32Array(cols * rows * 4); // [r,g,b,alpha] кожного світлодіода
+const GLOW_W = 20, GLOW_H = 12, GLOW_RX = 4.6, GLOW_RY = 1.9;
+const glowGrid = new Float32Array((GLOW_W + 1) * (GLOW_H + 1) * 4);   // те, що малюється (premultiplied)
+const glowTarget = new Float32Array((GLOW_W + 1) * (GLOW_H + 1) * 4); // куди плавно рухається
+const blurA = new Float32Array(cols * rows * 4);
+const blurB = new Float32Array(cols * rows * 4);
+const prevCells = new Float32Array(cols * rows * 4);
+let transitionStart = -1;
+const transitionDuration = 750;
+function beginEffectTransition() {
+  prevCells.set(cells);
+  transitionStart = millis();
+}
+let shellLit = 0; // 0 = лампа вимкнена (світліший плафон), 1 = дуже яскравий ефект (темніший)
+
+// Колір плафона: світліший у вимкненому стані, темніший при яскравому ефекті
+function shellRGB() {
+  return [lerp(152, 58, shellLit), lerp(155, 60, shellLit), lerp(163, 67, shellLit)];
+}
+// Верхня площина й кнопка йдуть за кольором плафона, але на d одиниць світліші
+function ringTone(d) {
+  return shellRGB().map((v) => Math.min(255, v + d));
+}
+function setShellBackground() {
+  glowTexture.background(shellRGB());
+}
+function tone(r, g, b) {
+  const k = lerp(1, 0.8, shellLit); // білий пластик ледь темнішає, коли лампа яскраво світить
+  return [r * k, g * k, b * k];
+}
+// Білінійна вибірка матриці світлодіодів (колонки замкнені по колу)
+function sampleCell(cf, rf) {
+  const c0 = Math.floor(cf), r0 = Math.floor(rf), fc = cf - c0, fr = rf - r0;
+  const o = [0, 0, 0, 0];
+  for (let dc = 0; dc < 2; dc++) for (let dr = 0; dr < 2; dr++) {
+    const w = (dc ? fc : 1 - fc) * (dr ? fr : 1 - fr);
+    const i = ((((c0 + dc) % cols) + cols) % cols * rows + constrain(r0 + dr, 0, rows - 1)) * 4;
+    o[0] += blurA[i] * w; o[1] += blurA[i + 1] * w; o[2] += blurA[i + 2] * w; o[3] += blurA[i + 3] * w;
+  }
+  return o;
+}
+// Сильне розмиття матриці (по колу і по висоті), щоб окремих пікселів у підсвітці не було видно
+function blurCells() {
+  for (let i = 0; i < cols * rows; i++) {
+    const a = cells[i * 4 + 3] / 255;
+    blurA[i * 4] = cells[i * 4] * a; blurA[i * 4 + 1] = cells[i * 4 + 1] * a;
+    blurA[i * 4 + 2] = cells[i * 4 + 2] * a; blurA[i * 4 + 3] = a;
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    for (let x = 0; x < cols; x++) for (let y = 0; y < rows; y++) for (let k = 0; k < 4; k++) {
+      let sum = 0;
+      for (let d = -3; d <= 3; d++) sum += blurA[(((x + d + cols) % cols) * rows + y) * 4 + k];
+      blurB[(x * rows + y) * 4 + k] = sum / 7;
+    }
+    for (let x = 0; x < cols; x++) for (let y = 0; y < rows; y++) for (let k = 0; k < 4; k++) {
+      let sum = 0;
+      for (let d = -2; d <= 2; d++) sum += blurB[(x * rows + constrain(y + d, 0, rows - 1)) * 4 + k];
+      blurA[(x * rows + y) * 4 + k] = sum / 5;
+    }
+  }
+}
+// Заднє світло повторює розподіл світла на видимій половині лампи: де лівіше більше діодів - там яскравіше
+function buildGlowGrid() {
+  blurCells();
+  for (let gy = 0; gy <= GLOW_H; gy++) {
+    const ny = gy / GLOW_H * 2 - 1;
+    for (let gx = 0; gx <= GLOW_W; gx++) {
+      const nx = gx / GLOW_W * 2 - 1;
+      const o = sampleCell(cols * (0.75 - 0.25 * constrain(nx * GLOW_RX, -1, 1)),
+                           2.4 + (constrain(ny * GLOW_RY, -1, 1) * 0.5 + 0.5) * 13.3);
+      const f = Math.pow(Math.max(0, 1 - Math.sqrt(nx * nx + ny * ny)), 1.6);
+      const i = (gy * (GLOW_W + 1) + gx) * 4;
+      glowTarget[i] = o[0] * f; glowTarget[i + 1] = o[1] * f; glowTarget[i + 2] = o[2] * f; glowTarget[i + 3] = o[3] * f;
+    }
+  }
+}
 
 // Змінні прогресу скролу (від 0.0 до 1.0)
 let scrollProgress = 0;
@@ -32,6 +191,7 @@ let currentPosX = 0;
 
 // Середній колір для світіння ззаду
 let ambientColor = [255, 100, 20];
+let effectHasLight = true;
 
 function setup() {
   setAttributes('antialias', true);
@@ -39,19 +199,23 @@ function setup() {
 
   smooth();
   mobileQuality = min(windowWidth, windowHeight) < 768;
-  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 3) : min(window.devicePixelRatio, 2));
+  pixelDensity(getDensity());
   frameRate(60);
+  lampDetail = mobileQuality ? 64 : 96;
 
   // Буфери текстур
   ledMatrix = createGraphics(cols, rows);
   glowTexture = createGraphics(192, 96);
+  effectOverlayTexture = createGraphics(192, 96);
   effectState.seed = createEffectSeed();
   effectState.epochMs = Date.now();
+  loadSavedState();
   setupControls();
 }
 
 function draw() {
   background(18, 20, 26);
+  monitorPerformance();
 
   // Ортографічна проєкція
   ortho(-width / 2, width / 2, -height / 2, height / 2, -1000, 1000);
@@ -83,16 +247,20 @@ function draw() {
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
   // Оновлюємо ефект вогню
-  const effectUpdateInterval = mobileQuality ? 4 : 2;
+  const effectUpdateInterval = mobileQuality || qualityStep ? 4 : 3;
   if ((renderLevel > 0.001 || effectNeedsRefresh) && frameCount % effectUpdateInterval === 0) {
     updateEffect();
     effectNeedsRefresh = false;
   }
+  const radius = isPortrait ? width * 0.17 : height * 0.14;
+  const mainHeight = radius * 3.7;
+  const baseHeight = radius * 0.18;
+
   // 1. СВІТІННЯ ЗЗАДУ
-  if (renderLevel > 0.001) {
+  if (renderLevel > 0.001 && effectHasLight) {
     push();
     translate(currentPosX, currentPosY, -150);
-    drawBacklightGlow(280, 520, ambientColor, renderLevel);
+    drawBacklightGlow(radius, mainHeight, renderLevel);
     pop();
   }
 
@@ -100,10 +268,6 @@ function draw() {
   push();
   translate(currentPosX, currentPosY, 0);
   rotateX(radians(currentAngleX));
-
-  const radius = isPortrait ? width * 0.17 : height * 0.14;
-  const mainHeight = radius * 3.7;
-  const baseHeight = radius * 0.18;
 
   translate(0, (mainHeight - baseHeight) / 2, 0);
 
@@ -177,33 +341,200 @@ function getLampState() {
 }
 
 function publishLampState() {
+  saveState();
   window.dispatchEvent(new CustomEvent('lampstatechange', { detail: getLampState() }));
 }
 
 function syncControls() {
-  const brightnessControlValue = constrain((effectState.brightness - 50) * 2, 0, 100);
-  document.getElementById('brightness').value = brightnessControlValue;
-  document.getElementById('brightness-value').textContent = `${Math.round(brightnessControlValue)}%`;
-  document.getElementById('effect-speed').value = Math.round(effectState.speed * 100);
-  document.getElementById('effect-speed-value').textContent = `${effectState.speed.toFixed(1)}×`;
-  document.getElementById('mono-color').value = effectState.color;
-  document.getElementById('mono-config').hidden = effectState.mode !== 'mono';
-  document.getElementById('effect-seed').textContent = (effectState.seed >>> 0).toString(16).slice(-6).toUpperCase();
+  const $ = (id) => document.getElementById(id);
+  const effect = getEffect();
+  cells.fill(0);
+  const curvePower = getBrightnessCurvePower(effectState.brightnessCurve);
+  const normalized = constrain((effectState.brightness - 50) / 50, 0, 1);
+  const sliderValue = Math.pow(normalized, 1 / curvePower) * 100;
+  $('brightness').value = sliderValue;
+  $('brightness-value').textContent = `${Math.round(sliderValue)}%`;
+  $('led-brightness').textContent = `${Math.round(effectState.brightness)}%`;
+  $('effect-speed').value = Math.round(effectState.speed * 100);
+  $('effect-speed-value').textContent = `${effectState.speed.toFixed(1)}×`;
+  $('mono-color').value = effectState.color;
+  $('color-row').hidden = !effect.usesColor;
+  $('effect-name').textContent = effect.name;
+  $('effect-seed').textContent = (effectState.seed >>> 0).toString(16).slice(-6).toUpperCase();
+  document.querySelectorAll('input[type="range"]').forEach((r) => {
+    r.style.setProperty('--p', `${(r.value - r.min) / (r.max - r.min) * 100}%`);
+  });
+  document.querySelectorAll('[data-effect]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.effect === effectState.mode));
+  });
+  document.querySelectorAll('[data-curve]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.curve === effectState.brightnessCurve));
+  });
+}
 
-  document.querySelectorAll('[data-effect]').forEach((button) => {
-    button.setAttribute('aria-pressed', String(button.dataset.effect === effectState.mode));
+function getBrightnessCurvePower(curve) {
+  if (curve === 'soft') return 0.7;
+  if (curve === 'precise') return 1.8;
+  return 1;
+}
+
+
+// ===== МОЇ НАЛАШТУВАННЯ (пресети): ефект + колір + швидкість + яскравість =====
+const PRESET_KEY = 'smart-lamp-presets-v1';
+let presets = [];
+let activePreset = 0;
+
+function presetFromState(name) {
+  const { mode, color, speed, brightness, brightnessCurve, seed } = effectState;
+  return { name, mode, color, speed, brightness, brightnessCurve, seed };
+}
+function loadPresets() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PRESET_KEY) || 'null');
+    if (p && Array.isArray(p.list)) {
+      presets = p.list.filter((x) => EFFECTS.some((e) => e.id === x.mode));
+      activePreset = constrain(p.active | 0, 0, Math.max(presets.length - 1, 0));
+    }
+  } catch (e) {}
+  if (!presets.length) {
+    presets = ['fire', 'rainbow', 'ocean'].map((id) => ({
+      name: EFFECTS.find((e) => e.id === id).name, mode: id, color: '#ff7420', speed: 1,
+      brightness: 100, brightnessCurve: 'linear', seed: createEffectSeed(),
+    }));
+    activePreset = 0;
+  }
+}
+function savePresets() {
+  try { localStorage.setItem(PRESET_KEY, JSON.stringify({ list: presets, active: activePreset })); } catch (e) {}
+}
+function showToast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => t.classList.remove('show'), 1300);
+}
+function applyPreset(i) {
+  const p = presets[i];
+  if (!p) return;
+  activePreset = i;
+  beginEffectTransition();
+  effectState = { ...effectState, mode: p.mode, color: p.color, speed: p.speed, brightness: p.brightness,
+    brightnessCurve: p.brightnessCurve, seed: p.seed ?? effectState.seed, epochMs: Date.now() + 250 };
+  effectNeedsRefresh = true;
+  syncControls();
+  renderPresets();
+  savePresets();
+  publishLampState();
+  showToast(p.name);
+}
+function stepPreset(dir) {
+  if (presets.length > 1) applyPreset((activePreset + dir + presets.length) % presets.length);
+}
+function renderPresets() {
+  const list = document.getElementById('preset-list');
+  list.innerHTML = '';
+  presets.forEach((p, i) => {
+    const effect = EFFECTS.find((e) => e.id === p.mode) || EFFECTS[0];
+    const chip = document.createElement('div');
+    chip.className = 'preset-chip';
+    chip.setAttribute('aria-current', String(i === activePreset));
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.dataset.preset = i;
+    const dot = document.createElement('span');
+    dot.className = 'chip-sw';
+    dot.style.background = effect.usesColor ? p.color : effect.preview;
+    pick.append(dot, document.createTextNode(p.name));
+    chip.appendChild(pick);
+    if (presets.length > 1) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.dataset.del = i;
+      del.setAttribute('aria-label', `Видалити ${p.name}`);
+      del.textContent = '×';
+      chip.appendChild(del);
+    }
+    list.appendChild(chip);
+  });
+}
+function setupPresetsAndGestures() {
+  loadPresets();
+  renderPresets();
+  document.getElementById('preset-list').addEventListener('click', (event) => {
+    const pick = event.target.closest('[data-preset]');
+    const del = event.target.closest('[data-del]');
+    if (del) {
+      presets.splice(Number(del.dataset.del), 1);
+      activePreset = constrain(activePreset, 0, presets.length - 1);
+      savePresets(); renderPresets();
+    } else if (pick) applyPreset(Number(pick.dataset.preset));
+  });
+  document.getElementById('preset-add').addEventListener('click', () => {
+    presets.push(presetFromState(`${getEffect().name} ${presets.length + 1}`));
+    activePreset = presets.length - 1;
+    savePresets(); renderPresets(); showToast('Збережено');
+  });
+  document.getElementById('preset-update').addEventListener('click', () => {
+    presets[activePreset] = presetFromState(presets[activePreset].name);
+    savePresets(); renderPresets(); showToast('Оновлено');
+  });
+
+  // Свайп вліво/вправо по сцені - наступний/попередній пресет, тап по лампі - вмикання/вимкнення
+  const scene = document.getElementById('scene');
+  let start = null;
+  scene.addEventListener('pointerdown', (e) => { start = { x: e.clientX, y: e.clientY }; });
+  scene.addEventListener('pointercancel', () => { start = null; });
+  scene.addEventListener('pointerup', (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    start = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.4) stepPreset(dx < 0 ? 1 : -1);
+    else if (Math.hypot(dx, dy) < 12 && isLampHit(e.clientX, e.clientY)) toggleLamp();
+  });
+}
+
+function buildEffectList() {
+  const list = document.getElementById('effect-list');
+  EFFECTS.forEach((e) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'effect-tile';
+    b.dataset.effect = e.id;
+    b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = `<span class="tile-swatch" style="background:${e.preview}"></span><span class="tile-name">${e.name}</span>`;
+    list.appendChild(b);
   });
 }
 
 function setupControls() {
+  buildEffectList();
+  setupPresetsAndGestures();
   const brightnessInput = document.getElementById('brightness');
   const speedInput = document.getElementById('effect-speed');
 
   brightnessInput.addEventListener('input', () => {
-    effectState.brightness = lerp(50, 100, Number(brightnessInput.value) / 100);
+    const sliderPosition = Number(brightnessInput.value) / 100;
+    const curvePower = getBrightnessCurvePower(effectState.brightnessCurve);
+    effectState.brightness = lerp(50, 100, Math.pow(sliderPosition, curvePower));
     syncControls();
     effectNeedsRefresh = true;
     publishLampState();
+  });
+
+  document.querySelectorAll('[data-curve]').forEach((button) => {
+    button.addEventListener('click', () => {
+      effectState.brightnessCurve = button.dataset.curve;
+      const sliderPosition = Number(brightnessInput.value) / 100;
+      effectState.brightness = lerp(
+        50,
+        100,
+        Math.pow(sliderPosition, getBrightnessCurvePower(effectState.brightnessCurve))
+      );
+      syncControls();
+      effectNeedsRefresh = true;
+      publishLampState();
+    });
   });
 
   speedInput.addEventListener('input', () => {
@@ -221,6 +552,7 @@ function setupControls() {
 
   document.querySelectorAll('[data-effect]').forEach((button) => {
     button.addEventListener('click', () => {
+      beginEffectTransition();
       effectState.mode = button.dataset.effect;
       effectState.epochMs = Date.now() + 250;
       effectNeedsRefresh = true;
@@ -230,6 +562,7 @@ function setupControls() {
   });
 
   document.getElementById('new-seed').addEventListener('click', () => {
+    beginEffectTransition();
     effectState.seed = createEffectSeed();
     effectState.epochMs = Date.now() + 250;
     effectNeedsRefresh = true;
@@ -239,8 +572,9 @@ function setupControls() {
 
   document.querySelectorAll('[data-color]').forEach((button) => {
     button.addEventListener('click', () => {
+      beginEffectTransition();
       effectState.color = button.dataset.color;
-      effectState.mode = 'mono';
+      if (!getEffect().usesColor) effectState.mode = 'mono';
       effectState.epochMs = Date.now() + 250;
       effectNeedsRefresh = true;
       syncControls();
@@ -267,92 +601,118 @@ function setupControls() {
 
 // Генерація синхронізованої текстури ефекту.
 function updateEffect() {
-  ledMatrix.background(0);
-  ledMatrix.noStroke();
+  if (renderLevel <= 0.001) {
+    shellLit = 0;
+    setShellBackground();
+    effectOverlayTexture.clear();
+    glowTexture.noTint();
+    return;
+  }
 
   const elapsed = Math.max(0, Date.now() - effectState.epochMs) * 0.001 * effectState.speed;
   const seed = effectState.seed >>> 0;
   const monoColor = hexToRgb(effectState.color);
-  const totalColor = [0, 0, 0];
-  let litCount = 0;
+  const effect = getEffect();
+  cells.fill(0);
 
   for (let x = 0; x < cols; x++) {
     const angle = x / cols * TWO_PI;
     const nx = cos(angle) * 2.5 + 3;
     const nz = sin(angle) * 2.5 + 3;
-
     for (let y = 0; y < rows; y++) {
-      let pixelColor = null;
-      if (effectState.mode === 'mono') {
-        pixelColor = monoColor;
-      } else if (effectState.mode === 'rainbow') {
-        pixelColor = hsvToRgb(x / cols * 360 + elapsed * 80 + seed % 360);
-      } else {
-        const heat = smoothNoise(nx, y * 0.16 - elapsed * 0.8, nz + elapsed * 0.12, seed);
-        const threshold = 0.28 + y / rows * 0.12;
-        if (heat > threshold) {
-          const strength = constrain(map(heat, threshold, 0.9, 0, 1), 0, 1);
-          pixelColor = [255, lerp(12, 220, strength), lerp(0, 34, strength)];
-        }
-      }
-
-      if (pixelColor) {
-        ledMatrix.fill(pixelColor[0], pixelColor[1], pixelColor[2]);
-        ledMatrix.rect(x, y, 1, 1);
-        totalColor[0] += pixelColor[0];
-        totalColor[1] += pixelColor[1];
-        totalColor[2] += pixelColor[2];
-        litCount++;
+      const c = effect.pixel({ x, y, nx, nz, t: elapsed, seed, color: monoColor });
+      if (c) {
+        const ci = (x * rows + y) * 4;
+        cells[ci] = c[0]; cells[ci + 1] = c[1]; cells[ci + 2] = c[2]; cells[ci + 3] = c[3] ?? 255;
       }
     }
   }
 
-  if (litCount > 0) {
-    ambientColor[0] = totalColor[0] / litCount;
-    ambientColor[1] = totalColor[1] / litCount;
-    ambientColor[2] = totalColor[2] / litCount;
+  // Плавне змішування зі збереженим попереднім станом
+  if (transitionStart >= 0) {
+    const p = constrain((millis() - transitionStart) / transitionDuration, 0, 1);
+    const t = p * p * (3 - 2 * p);
+    for (let i = 0; i < cells.length; i += 4) {
+      const pa = prevCells[i + 3] * (1 - t), na = cells[i + 3] * t, a = pa + na;
+      for (let k = 0; k < 3; k++) cells[i + k] = a > 0 ? (prevCells[i + k] * pa + cells[i + k] * na) / a : 0;
+      cells[i + 3] = a;
+    }
+    if (p >= 1) transitionStart = -1;
   }
 
-  glowTexture.background(
-    lerp(242, 0, renderLevel),
-    lerp(245, 0, renderLevel),
-    lerp(249, 0, renderLevel)
-  );
+  ledMatrix.clear();
+  ledMatrix.noStroke();
+  const totalColor = [0, 0, 0];
+  let totalAlpha = 0;
+  let litSum = 0;
+  for (let x = 0; x < cols; x++) {
+    for (let y = 0; y < rows; y++) {
+      const i = (x * rows + y) * 4;
+      const a = cells[i + 3];
+      if (a <= 0.5) continue;
+      ledMatrix.fill(cells[i], cells[i + 1], cells[i + 2], a);
+      ledMatrix.rect(x, y, 1, 1);
+      totalColor[0] += cells[i] * a; totalColor[1] += cells[i + 1] * a; totalColor[2] += cells[i + 2] * a;
+      totalAlpha += a;
+      litSum += a / 255 * Math.max(cells[i], cells[i + 1], cells[i + 2]) / 255;
+    }
+  }
+
+  if (totalAlpha > 0) {
+    effectHasLight = true;
+    ambientColor[0] = totalColor[0] / totalAlpha;
+    ambientColor[1] = totalColor[1] / totalAlpha;
+    ambientColor[2] = totalColor[2] / totalAlpha;
+  } else {
+    effectHasLight = false;
+    ambientColor[0] = ambientColor[1] = ambientColor[2] = 0;
+  }
+
+  shellLit = Math.pow(constrain(litSum / (cols * rows) * 3, 0, 1), 0.7) * renderLevel;
+  setShellBackground();
+  buildGlowGrid();
+
   const tileWidth = glowTexture.width / 3;
-  glowTexture.tint(255, 255 * renderLevel);
-  glowTexture.image(ledMatrix, 0, 0, tileWidth, glowTexture.height);
-  glowTexture.image(ledMatrix, tileWidth, 0, tileWidth, glowTexture.height);
-  glowTexture.image(ledMatrix, tileWidth * 2, 0, tileWidth, glowTexture.height);
+  const blurAmount = qualityStep ? 2 : 4;
+  glowTexture.tint(255, 255 * renderLevel * effectOverlayOpacity);
+  for (let pass = 0; pass < 2; pass++) for (let k = 0; k < 3; k++) glowTexture.image(ledMatrix, tileWidth * k, 0, tileWidth, glowTexture.height);
   glowTexture.noTint();
-  glowTexture.filter(BLUR, 2);
+  glowTexture.filter(BLUR, blurAmount);
+
+  effectOverlayTexture.clear();
+  effectOverlayTexture.tint(255, 255 * renderLevel * effectOverlayOpacity);
+  for (let pass = 0; pass < 2; pass++) for (let k = 0; k < 3; k++) effectOverlayTexture.image(ledMatrix, tileWidth * k, 0, tileWidth, effectOverlayTexture.height);
+  effectOverlayTexture.noTint();
+  effectOverlayTexture.filter(BLUR, blurAmount);
 }
 
 // Заднє сяйво
-function drawBacklightGlow(w, h, col, strength) {
+function drawBacklightGlow(r, mainH, strength) {
+  for (let i = 0; i < glowGrid.length; i++) glowGrid[i] += (glowTarget[i] - glowGrid[i]) * 0.14; // плавний перехід
   noStroke();
-  beginShape(TRIANGLE_FAN);
-  fill(col[0], col[1], col[2], 130 * strength);
-  vertex(0, 0, 0);
-  fill(col[0], col[1], col[2], 0);
-
-  const detail = 32;
-  for (let i = 0; i <= detail; i++) {
-    let a = (i / detail) * TWO_PI;
-    let rx = cos(a) * w * 1.3;
-    let ry = sin(a) * h * 0.8;
-    vertex(rx, ry, 0);
+  const hw = r * GLOW_RX, hh = mainH / 2 * GLOW_RY;
+  for (let gy = 0; gy < GLOW_H; gy++) {
+    beginShape(TRIANGLE_STRIP);
+    for (let gx = 0; gx <= GLOW_W; gx++) {
+      for (let k = 0; k < 2; k++) {
+        const row = gy + k, i = (row * (GLOW_W + 1) + gx) * 4, a = glowGrid[i + 3];
+        if (a > 0.001) fill(glowGrid[i] / a, glowGrid[i + 1] / a, glowGrid[i + 2] / a, 190 * strength * a);
+        else fill(0, 0, 0, 0);
+        vertex((gx / GLOW_W * 2 - 1) * hw, (row / GLOW_H * 2 - 1) * hh, 0);
+      }
+    }
+    endShape();
   }
-  endShape();
 }
 
 // Плавне дугове скруглення купола без сходинок
 function drawFullLamp(r, mainH, baseH, glow, brightness) {
   textureMode(NORMAL);
-  const detail = 128;
+  const detail = lampDetail;
   const bottomR = r + 4;
 
   // 1. ВУЗЬКА НИЖНЯ ПІДСТАВКА
-  fill(190, 193, 201);
+  fill(tone(228, 229, 234));
   noStroke();
 
   beginShape(QUAD_STRIP);
@@ -364,7 +724,7 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   }
   endShape();
 
-  fill(155, 158, 167);
+  fill(tone(192, 195, 202));
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     const u = i / detail;
@@ -389,8 +749,8 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   const topSurfaceR = r - roundedTopRadius;
   const buttonR = r * 0.42;
   const topY = -mainH;
-  const shellAlpha = lerp(245, 255, 1 - brightness);
-  const arcSteps = 16;
+  const shellAlpha = 255;
+  const arcSteps = lampDetail >= 96 ? 14 : 8;
   const shellRings = [
     { radius: r, y: baseH * 0.3, v: 0.98 },
     { radius: r, y: cylinderTopY, v: 0.15 },
@@ -436,24 +796,36 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   endShape();
   noTint();
 
-  tint(255, shellAlpha);
+  fill(ringTone(12));
   beginShape(QUAD_STRIP);
-  texture(glow);
   for (let i = 0; i <= detail; i++) {
     const u = i / detail;
-    const angle = u * TWO_PI + PI;
-    const texU = map(u, 0, 1, 0.333, 0.666);
-    vertex(cos(angle) * topSurfaceR, topY, sin(angle) * topSurfaceR, texU, 0.02);
-    vertex(cos(angle) * (buttonR + 0.5), topY, sin(angle) * (buttonR + 0.5), texU, 0.02);
+    const angle = i / detail * TWO_PI + PI;
+    vertex(cos(angle) * topSurfaceR, topY, sin(angle) * topSurfaceR);
+    vertex(cos(angle) * (buttonR + 0.5), topY, sin(angle) * (buttonR + 0.5));
   }
   endShape();
-  noTint();
+
+  if (brightness > 0.001) {
+    tint(255, shellAlpha * effectOverlayOpacity);
+    beginShape(QUAD_STRIP);
+    texture(effectOverlayTexture);
+    for (let i = 0; i <= detail; i++) {
+      const u = i / detail;
+      const angle = i / detail * TWO_PI + PI;
+      const texU = map(u, 0, 1, 0.333, 0.666);
+      vertex(cos(angle) * topSurfaceR, topY - 0.01, sin(angle) * topSurfaceR, texU, 0.02);
+      vertex(cos(angle) * (buttonR + 0.5), topY - 0.01, sin(angle) * (buttonR + 0.5), texU, 0.02);
+    }
+    endShape();
+    noTint();
+  }
 
   // 3. ОБ'ЄМНА КНОПКА В ЦЕНТРІ
   const buttonHeight = 3.5;
   const btnTopY = topY - buttonHeight;
 
-  fill(175, 178, 185);
+  fill(tone(230, 231, 235));
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
@@ -463,7 +835,7 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   }
   endShape();
 
-  fill(190, 193, 200);
+  fill(tone(236, 237, 240));
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
@@ -473,7 +845,7 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   }
   endShape();
 
-  fill(215, 218, 225);
+  fill(tone(242, 243, 246));
   beginShape(TRIANGLE_FAN);
   vertex(0, btnTopY, 0);
   for (let i = 0; i <= detail; i++) {
@@ -484,12 +856,6 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   endShape();
 }
 
-let touchStartY = 0;
-let touchStartX = 0;
-let touchStartedOnLamp = false;
-let touchMovedEnough = false;
-let touchPending = false;
-let lastTouchToggleAt = -Infinity;
 
 function isLampHit(x, y) {
   const isPortrait = height > width;
@@ -516,38 +882,12 @@ function toggleLamp() {
   publishLampState();
 }
 
-function mousePressed(event) {
-  const canvas = document.querySelector('#scene canvas');
-  if (!event || event.target !== canvas) return;
-  if (touchPending || millis() - lastTouchToggleAt < 500) return;
-  if (isLampHit(mouseX, mouseY)) {
-    toggleLamp();
-    return false;
-  }
-}
 
-function touchStarted() {
-  touchStartY = mouseY;
-  touchStartX = mouseX;
-  touchStartedOnLamp = isLampHit(mouseX, mouseY);
-  touchMovedEnough = false;
-  touchPending = true;
-}
 
-function touchMoved() {
-  if (dist(mouseX, mouseY, touchStartX, touchStartY) > 12) touchMovedEnough = true;
-}
 
-function touchEnded() {
-  if (touchStartedOnLamp && !touchMovedEnough) {
-    toggleLamp();
-    lastTouchToggleAt = millis();
-  }
-  touchPending = false;
-}
 
 function windowResized() {
   mobileQuality = min(windowWidth, windowHeight) < 768;
-  pixelDensity(mobileQuality ? min(window.devicePixelRatio, 3) : min(window.devicePixelRatio, 2));
+  pixelDensity(getDensity());
   resizeCanvas(windowWidth, windowHeight);
 }
