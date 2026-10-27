@@ -32,7 +32,7 @@ const EFFECTS = [
       const th = 0.42 + c.y / rows * 0.12;
       if (heat <= th) return null;
       const k = constrain((heat - th) / (0.9 - th), 0, 1);
-      return [255, lerp(12, 220, k), lerp(0, 34, k), lerp(235, 255, k)];
+      return [255, lerp(12, 220, k), lerp(0, 34, k), lerp(250, 255, k)];
     } },
   { id: 'mono', name: 'Колір', usesColor: true, preview: 'linear-gradient(135deg,#ff7420,#ffb46b)',
     pixel: (c) => [...c.color, 255] },
@@ -116,11 +116,86 @@ function beginEffectTransition() {
   prevCells.set(cells);
   transitionStart = millis();
 }
-let shellLit = 0; // 0 = лампа вимкнена (світліший плафон), 1 = дуже яскравий ефект (темніший)
+let shellLit = 0;
+let shellLitTarget = 0; // 0 = лампа вимкнена (світліший плафон), 1 = дуже яскравий ефект (темніший)
 
 // Колір плафона: світліший у вимкненому стані, темніший при яскравому ефекті
 function shellRGB() {
-  return [lerp(152, 58, shellLit), lerp(155, 60, shellLit), lerp(163, 67, shellLit)];
+  const off = [152, 155, 163];   // вимкнений плафон
+  const on = [84, 88, 98];       // плафон, коли світлодіодів багато (не чорний, а темносірий)
+  return off.map((v, i) => {
+    const c = lerp(v, on[i], shellLit);
+    return lerp(c, ambientColor[i], 0.06 * shellLit); // легка прозорість: плафон підхоплює колір світла
+  });
+}
+// Верхня площина: завжди трохи світліша за плафон (дає об'єм), а при світінні ловить світло кольору ефекту
+function topPlaneRGB() {
+  const base = shellRGB().map((v) => Math.min(255, v + 10));
+  return base.map((v, i) => lerp(v, lerp(ambientColor[i], 255, 0.4), shellLit * 0.5));
+}
+// Об'ємне затінення плафона: темніші краї, м'який відблиск зліва, легке затемнення донизу
+// Єдина таблиця затінення [позиція u на видимій половині, 1=біле/0=чорне, прозорість].
+// u=0.5 - правий край, 0.75 - центр, 1 - лівий край. Її використовують і текстура плафона, і верхня площина,
+// тому на стику шва не видно.
+const TOP_PLANE_GRADIENT = false; // true = затінення верхньої площини по краях (об'ємніше), false = рівна світла площина
+const SHADE_STOPS = [[0.5, 0, 0.4], [0.62, 0, 0.13], [0.78, 0, 0], [0.86, 1, 0.14], [0.93, 0, 0.07], [1, 0, 0.4]];
+
+function shadeColor(u, c, k) {
+  u = constrain(u, 0.5, 1);
+  let i = 0;
+  while (i < SHADE_STOPS.length - 2 && u > SHADE_STOPS[i + 1][0]) i++;
+  const a = SHADE_STOPS[i], b = SHADE_STOPS[i + 1];
+  const t = (u - a[0]) / (b[0] - a[0]);
+  const white = lerp(a[1], b[1], t) * 255, alpha = lerp(a[2], b[2], t) * k;
+  return c.map((v) => v * (1 - alpha) + white * alpha);
+}
+
+let shadeCanvas = null;
+function applyShellShading() {
+  const ctx = glowTexture.drawingContext;
+  const w = glowTexture.width / 3, h = glowTexture.height, x0 = w;
+  // Коли світлодіоди горять, затінення майже зникає, щоб не приглушувати кольори
+  const k = 1 - 0.75 * shellLit;
+  const stops = [];
+  SHADE_STOPS.forEach(([u, white, alpha]) => { stops.push([u, white, alpha]); stops.push([1 - u, white, alpha]); });
+  stops.sort((p, q) => p[0] - q[0]);
+
+  // Бічне затінення малюється окремо і плавно зникає на заокругленому верху (без смуг і плям)
+  if (!shadeCanvas) {
+    shadeCanvas = document.createElement('canvas');
+    shadeCanvas.width = 128;
+    shadeCanvas.height = 192;
+  }
+  const sx = shadeCanvas.getContext('2d');
+  const W = shadeCanvas.width, H = shadeCanvas.height;
+  sx.clearRect(0, 0, W, H);
+  sx.globalCompositeOperation = 'source-over';
+  const side = sx.createLinearGradient(0, 0, W, 0);
+  let last = -1;
+  stops.forEach(([f, white, alpha]) => {
+    if (Math.abs(f - last) < 1e-6) return;
+    last = f;
+    side.addColorStop(f, `rgba(${white * 255},${white * 255},${white * 255},${alpha * k})`);
+  });
+  sx.fillStyle = side;
+  sx.fillRect(0, 0, W, H);
+  sx.globalCompositeOperation = 'destination-in';
+  const mask = sx.createLinearGradient(0, 0, 0, H);
+  [[0, 0], [0.16, 0], [0.2, 0.1], [0.26, 0.4], [0.32, 0.8], [0.38, 1], [1, 1]]
+    .forEach(([p, a]) => mask.addColorStop(p, `rgba(0,0,0,${a})`));
+  sx.fillStyle = mask;
+  sx.fillRect(0, 0, W, H);
+  sx.globalCompositeOperation = 'source-over';
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(shadeCanvas, x0, 0, w, h);
+  const down = ctx.createLinearGradient(0, h * 0.15, 0, h * 0.98);
+  down.addColorStop(0, 'rgba(0,0,0,0)');
+  down.addColorStop(1, `rgba(0,0,0,${0.16 * k})`);
+  ctx.fillStyle = down;
+  ctx.fillRect(x0, h * 0.15, w, h);
+  ctx.restore();
 }
 // Верхня площина й кнопка йдуть за кольором плафона, але на d одиниць світліші
 function ringTone(d) {
@@ -247,8 +322,10 @@ function draw() {
   currentPosY = lerp(currentPosY, targetY, 0.08);
 
   // Оновлюємо ефект вогню
+  shellLit += (shellLitTarget - shellLit) * (1 - Math.exp(-deltaTime / 450));
+  if (Math.abs(shellLitTarget - shellLit) < 0.002) shellLit = shellLitTarget;
   const effectUpdateInterval = mobileQuality || qualityStep ? 4 : 3;
-  if ((renderLevel > 0.001 || effectNeedsRefresh) && frameCount % effectUpdateInterval === 0) {
+  if ((renderLevel > 0.001 || effectNeedsRefresh || shellLit !== shellLitTarget) && frameCount % effectUpdateInterval === 0) {
     updateEffect();
     effectNeedsRefresh = false;
   }
@@ -602,8 +679,9 @@ function setupControls() {
 // Генерація синхронізованої текстури ефекту.
 function updateEffect() {
   if (renderLevel <= 0.001) {
-    shellLit = 0;
+    shellLitTarget = 0;
     setShellBackground();
+    applyShellShading();
     effectOverlayTexture.clear();
     glowTexture.noTint();
     return;
@@ -668,20 +746,22 @@ function updateEffect() {
     ambientColor[0] = ambientColor[1] = ambientColor[2] = 0;
   }
 
-  shellLit = Math.pow(constrain(litSum / (cols * rows) * 3, 0, 1), 0.7) * renderLevel;
+  const coverageLit = Math.pow(constrain(litSum / (cols * rows) * 1.3, 0, 1), 0.9) * renderLevel;
+  shellLitTarget = coverageLit; // чим більше світлих пікселів, тим темніший плафон (плавно, див. draw)
   setShellBackground();
   buildGlowGrid();
 
   const tileWidth = glowTexture.width / 3;
-  const blurAmount = qualityStep ? 2 : 4;
+  const blurAmount = qualityStep ? 2 : 3;
   glowTexture.tint(255, 255 * renderLevel * effectOverlayOpacity);
-  for (let pass = 0; pass < 2; pass++) for (let k = 0; k < 3; k++) glowTexture.image(ledMatrix, tileWidth * k, 0, tileWidth, glowTexture.height);
+  for (let pass = 0; pass < 3; pass++) for (let k = 0; k < 3; k++) glowTexture.image(ledMatrix, tileWidth * k, 0, tileWidth, glowTexture.height);
   glowTexture.noTint();
   glowTexture.filter(BLUR, blurAmount);
+  applyShellShading();
 
   effectOverlayTexture.clear();
   effectOverlayTexture.tint(255, 255 * renderLevel * effectOverlayOpacity);
-  for (let pass = 0; pass < 2; pass++) for (let k = 0; k < 3; k++) effectOverlayTexture.image(ledMatrix, tileWidth * k, 0, tileWidth, effectOverlayTexture.height);
+  for (let pass = 0; pass < 3; pass++) for (let k = 0; k < 3; k++) effectOverlayTexture.image(ledMatrix, tileWidth * k, 0, tileWidth, effectOverlayTexture.height);
   effectOverlayTexture.noTint();
   effectOverlayTexture.filter(BLUR, blurAmount);
 }
@@ -796,12 +876,15 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   endShape();
   noTint();
 
-  fill(ringTone(12));
+  const topBase = topPlaneRGB();
+  const shadeK = 1 - 0.4 * shellLit;
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
-    const u = i / detail;
     const angle = i / detail * TWO_PI + PI;
+    const uEq = 0.75 - 0.25 * cos(angle); // те саме затінення за положенням по X, що й на плафоні
+    fill(TOP_PLANE_GRADIENT ? shadeColor(uEq, topBase, shadeK) : topBase);
     vertex(cos(angle) * topSurfaceR, topY, sin(angle) * topSurfaceR);
+    fill(TOP_PLANE_GRADIENT ? shadeColor(uEq, topBase, shadeK * 0.4).map((v) => Math.min(255, v + 5)) : topBase);
     vertex(cos(angle) * (buttonR + 0.5), topY, sin(angle) * (buttonR + 0.5));
   }
   endShape();
