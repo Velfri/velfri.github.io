@@ -62,6 +62,7 @@ const EFFECTS = [
 function getEffect() { return EFFECTS.find((e) => e.id === effectState.mode) || EFFECTS[0]; }
 
 const STORE_KEY = 'smart-lamp-state-v1';
+const APP_VERSION = 'v7'; // видно на екрані, якщо відкрити сайт з #debug в кінці адреси
 let lampDetail = 96;
 let fpsAvg = 60, qualityStep = 0, lastFpsText = 0, qualityCheckAt = 4000;
 
@@ -90,7 +91,7 @@ function monitorPerformance() {
     lastFpsText = now;
     const el = document.getElementById('fps-counter');
     el.hidden = false;
-    el.textContent = `FPS ${Math.round(fpsAvg)} · q${qualityStep}`;
+    el.textContent = `FPS ${Math.round(fpsAvg)} · q${qualityStep} · ${APP_VERSION}`;
   }
   if (now > qualityCheckAt && fpsAvg < 38 && qualityStep < 2 && document.visibilityState === 'visible') {
     qualityStep++;
