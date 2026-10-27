@@ -129,9 +129,13 @@ function shellRGB() {
   });
 }
 // Верхня площина: завжди трохи світліша за плафон (дає об'єм), а при світінні ловить світло кольору ефекту
+// Кнопка: у вимкненому стані ледь сірувата, а коли ефект горить - світліша, підсвічена кольором ефекту
+function buttonTone(r, g, b) {
+  return [r, g, b].map((v, i) => lerp(v, lerp(ambientColor[i], 255, 0.5), shellLit * 0.7));
+}
 function topPlaneRGB() {
   const base = shellRGB().map((v) => Math.min(255, v + 10));
-  return base.map((v, i) => lerp(v, lerp(ambientColor[i], 255, 0.4), shellLit * 0.5));
+  return base.map((v, i) => lerp(v, lerp(ambientColor[i], 255, 0.3), shellLit * 0.85)); // при світінні площина світлішає разом із лампою
 }
 // Об'ємне затінення плафона: темніші краї, м'який відблиск зліва, легке затемнення донизу
 // Єдина таблиця затінення [позиція u на видимій половині, 1=біле/0=чорне, прозорість].
@@ -908,7 +912,7 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   const buttonHeight = 3.5;
   const btnTopY = topY - buttonHeight;
 
-  fill(tone(230, 231, 235));
+  fill(buttonTone(230, 231, 235));
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
@@ -918,7 +922,7 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   }
   endShape();
 
-  fill(tone(236, 237, 240));
+  fill(buttonTone(236, 237, 240));
   beginShape(QUAD_STRIP);
   for (let i = 0; i <= detail; i++) {
     let u = i / detail;
@@ -928,7 +932,7 @@ function drawFullLamp(r, mainH, baseH, glow, brightness) {
   }
   endShape();
 
-  fill(tone(242, 243, 246));
+  fill(buttonTone(242, 243, 246));
   beginShape(TRIANGLE_FAN);
   vertex(0, btnTopY, 0);
   for (let i = 0; i <= detail; i++) {
